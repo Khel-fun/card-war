@@ -1,1 +1,4 @@
-export enum CircuitKind {}
+export enum CircuitKind {
+  SHUFFLE = "shuffle",
+  DEAL = "deal",
+}
