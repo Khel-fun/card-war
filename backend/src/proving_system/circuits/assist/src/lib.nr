@@ -1,9 +1,8 @@
 use dep::std;
 
-global STANDARD_DECK_SIZE: u32 = 52;
-global NUM_PLAYERS: u32 = 2;
-global CARDS_PER_PLAYER: u32 = 5;
-global GAMMA: Field = 12345;
+pub global STANDARD_DECK_SIZE: u32 = 52;
+pub global CARDS_PER_PLAYER: u32 = 5;
+pub global GAMMA: Field = 12345;
 
 #[export]
 pub fn shuffle_deck(seed: Field) -> [Field; STANDARD_DECK_SIZE] {
@@ -41,4 +40,30 @@ pub fn constrain_deck_integrity<let N: u32>(original_deck: [Field; N], shuffled_
         actual_product *= (gamma + shuffled_deck[i]);
     }
     assert(expected_product == actual_product, "[ERR: Deck]: Deck integrity compromised!");
+}
+
+#[export]
+pub fn deal_cards(
+    shuffled_deck: [Field; STANDARD_DECK_SIZE],
+    seed: Field,
+) -> ([Field; CARDS_PER_PLAYER], Field) {
+    let mut cards: [Field; CARDS_PER_PLAYER] = [0; CARDS_PER_PLAYER];
+    let mut commitment: Field = std::hash::pedersen_hash([seed]);
+    for i in 0..CARDS_PER_PLAYER {
+        cards[i] = shuffled_deck[i];
+        commitment = std::hash::pedersen_hash([commitment, shuffled_deck[i]]);
+    }
+    (cards, commitment)
+}
+
+#[export]
+unconstrained fn card_to_string(card: Field) -> (Field, Field) {
+    // Returns (rank, suit) where:
+    // rank: 2 - 10 , 11 = J, 12= Q, 13 = K, 14 = A
+    // suit: 0=Hearts, 1=Diamonds, 2=Clubs, 3=Spades
+    let card_u32 = card as u32;
+    let mut rank = (card_u32 % 13) as Field;
+    rank = if ( rank == 0) { 13 } else if ( rank == 1) { 14 } else { rank } ;
+    let suit = (card_u32 / 13) as Field;
+    (rank, suit)
 }

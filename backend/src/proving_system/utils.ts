@@ -1,5 +1,5 @@
 import { CircuitKind } from "./type";
-import { Abi, AbiParameter } from "@noir-lang/types";
+import { AbiParameter } from "@noir-lang/types";
 import path from "path";
 import fs from "fs";
 
@@ -12,7 +12,7 @@ interface CircuitAbi {
 interface CircuitJson {
   noir_version: string;
   hash: string;
-  abi: Abi;
+  abi: CircuitAbi;
   bytecode: string;
   debug_symbols: string;
   file_map: Record<string, any>;
