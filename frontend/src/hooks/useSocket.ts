@@ -86,6 +86,9 @@ export function useSocket(walletAddress: string | undefined) {
       store.setCardCounts(data.cardCounts);
       store.setMessage(data.message);
       store.setMyReady(false);
+      store.setBothReady(false);
+      store.setStatus('active');
+      store.setIsWar(false);
     });
 
     socket.on('war_result', (data: { gameOver: boolean }) => {

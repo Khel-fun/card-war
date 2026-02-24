@@ -24,40 +24,59 @@ export default function GamePage() {
 
   const isWinner = gameWinner === playerId;
   const opponentId = Object.keys(cardCounts).find(id => id !== playerId) ?? '';
+  const myScore = cardCounts[playerId ?? ''] ?? 0;
+  const opponentScore = cardCounts[opponentId] ?? 0;
 
   if (status === 'game_over') {
     return (
-      <main className="min-h-screen flex flex-col items-center justify-center px-4 gap-8">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden"
+        style={{
+          background: 'radial-gradient(ellipse at center bottom, #7c2d12 0%, #431407 30%, #1c0a02 60%, #0a0500 100%)',
+        }}
+      >
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: 'radial-gradient(ellipse at 20% 50%, rgba(251,146,60,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(239,68,68,0.1) 0%, transparent 50%)',
+        }} />
         <motion.div
-          className="text-center"
+          className="text-center relative z-10"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ type: 'spring', duration: 0.6 }}
         >
-          <div className="text-8xl mb-6">
-            {isWinner ? '🏆' : '💀'}
-          </div>
-          <h1 className={`text-5xl font-bold mb-3 font-display ${isWinner ? 'text-war-gold' : 'text-war-red'}`}>
-            {isWinner ? 'You Win!' : 'You Lose'}
+          <div className="text-8xl mb-4">{isWinner ? '🏆' : '💀'}</div>
+          <h1
+            className="text-6xl font-bold mb-2 font-display"
+            style={{
+              color: isWinner ? '#f59e0b' : '#ef4444',
+              textShadow: isWinner
+                ? '0 0 40px rgba(245,158,11,0.8), 0 2px 4px rgba(0,0,0,0.8)'
+                : '0 0 40px rgba(239,68,68,0.8), 0 2px 4px rgba(0,0,0,0.8)',
+            }}
+          >
+            {isWinner ? 'VICTORY!' : 'DEFEATED'}
           </h1>
-          <p className="text-gray-400 text-lg mb-2">
-            Game ended after {roundNumber} rounds
-          </p>
-          <div className="flex gap-8 justify-center mt-4 mb-8">
+          <p className="text-amber-300/70 text-lg mb-6">Battle ended after {roundNumber} rounds</p>
+
+          <div
+            className="flex gap-12 justify-center mb-8 px-8 py-4 rounded-xl"
+            style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(245,158,11,0.3)' }}
+          >
             <div className="text-center">
-              <p className="text-xs text-gray-500">Your cards</p>
-              <p className="text-3xl font-bold text-white">{cardCounts[playerId ?? ''] ?? 0}</p>
+              <p className="text-amber-400/60 text-xs uppercase tracking-widest mb-1">Your Score</p>
+              <p className="text-4xl font-bold text-white font-display">{myScore}</p>
             </div>
+            <div className="w-px bg-amber-900/50" />
             <div className="text-center">
-              <p className="text-xs text-gray-500">Opponent cards</p>
-              <p className="text-3xl font-bold text-white">{cardCounts[opponentId] ?? 0}</p>
+              <p className="text-amber-400/60 text-xs uppercase tracking-widest mb-1">Opponent Score</p>
+              <p className="text-4xl font-bold text-white font-display">{opponentScore}</p>
             </div>
           </div>
 
           {deckHash && (
-            <div className="bg-war-card border border-war-border rounded-xl p-4 mb-6 max-w-sm mx-auto">
-              <p className="text-xs text-gray-500 mb-1">Deck Hash (verify fairness)</p>
-              <p className="font-mono text-xs text-gray-400 break-all">{deckHash}</p>
+            <div className="mb-6 max-w-sm mx-auto px-4 py-3 rounded-xl" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <p className="text-xs text-amber-400/50 mb-1">Deck Hash</p>
+              <p className="font-mono text-xs text-amber-300/40 break-all">{deckHash}</p>
             </div>
           )}
 
@@ -65,44 +84,59 @@ export default function GamePage() {
             <Link href="/lobby">
               <motion.button
                 onClick={reset}
-                className="px-8 py-3 bg-war-accent hover:bg-purple-600 text-white font-bold rounded-xl transition-colors"
+                className="px-10 py-3 font-bold text-lg rounded-lg transition-all"
+                style={{
+                  background: 'linear-gradient(to bottom, #d97706, #92400e)',
+                  border: '2px solid #f59e0b',
+                  color: '#fef3c7',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                  boxShadow: '0 0 20px rgba(245,158,11,0.4)',
+                }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                Play Again
+                PLAY AGAIN
               </motion.button>
             </Link>
             <Link href="/">
               <button
                 onClick={reset}
-                className="px-8 py-3 bg-war-card border border-war-border hover:border-war-accent text-gray-300 font-bold rounded-xl transition-colors"
+                className="px-10 py-3 font-bold text-lg rounded-lg transition-all"
+                style={{
+                  background: 'rgba(0,0,0,0.5)',
+                  border: '2px solid rgba(245,158,11,0.3)',
+                  color: '#d6d3d1',
+                }}
               >
-                Home
+                HOME
               </button>
             </Link>
           </div>
         </motion.div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-start pt-8 px-4 gap-6">
-      <div className="flex items-center justify-between w-full max-w-2xl">
-        <Link href="/lobby" className="text-gray-600 hover:text-gray-400 text-sm transition-colors">
-          ← Leave Game
-        </Link>
-        <h1 className="text-xl font-bold text-white font-display">⚔️ Card War</h1>
-        <div className="text-xs text-gray-600 font-mono">
-          {status === 'queued' ? 'Searching...' : status === 'active' ? 'Active' : status === 'war' ? '⚔️ WAR' : status}
-        </div>
-      </div>
+    <div className="min-h-screen relative overflow-hidden" style={{
+      background: 'radial-gradient(ellipse at center bottom, #7c2d12 0%, #431407 30%, #1c0a02 60%, #0a0500 100%)',
+    }}>
+      <div className="absolute inset-0 pointer-events-none" style={{
+        background: `
+          radial-gradient(ellipse at 15% 60%, rgba(251,146,60,0.25) 0%, transparent 40%),
+          radial-gradient(ellipse at 85% 60%, rgba(239,68,68,0.2) 0%, transparent 40%),
+          radial-gradient(ellipse at 50% 80%, rgba(245,158,11,0.1) 0%, transparent 50%)
+        `,
+      }} />
+      <div className="absolute bottom-0 left-0 right-0 h-40 pointer-events-none" style={{
+        background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 100%)',
+      }} />
 
       <AnimatePresence mode="wait">
         {(status === 'active' || status === 'war') && (
           <motion.div
             key="gameboard"
-            className="w-full"
+            className="w-full h-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -114,21 +148,26 @@ export default function GamePage() {
         {status === 'queued' && (
           <motion.div
             key="queued"
-            className="flex flex-col items-center gap-4 mt-20"
+            className="flex flex-col items-center justify-center min-h-screen gap-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
             <motion.div
-              className="text-6xl"
+              className="text-7xl"
               animate={{ rotate: 360 }}
               transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
             >
               🃏
             </motion.div>
-            <p className="text-gray-400">Waiting for opponent...</p>
+            <p
+              className="text-2xl font-bold font-display"
+              style={{ color: '#f59e0b', textShadow: '0 0 20px rgba(245,158,11,0.5)' }}
+            >
+              Seeking Opponent...
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
-    </main>
+    </div>
   );
 }

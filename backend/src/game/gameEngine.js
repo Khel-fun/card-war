@@ -1,6 +1,6 @@
 const { createDeck, shuffle, hashDeck, dealCards } = require('./deck');
 
-const MAX_ROUNDS = 500;
+const MAX_ROUNDS = 5;
 
 class GameEngine {
   constructor(gameId, player1Id, player2Id) {
@@ -115,6 +115,8 @@ class GameEngine {
     const p2FaceDown = p2.shift();
     this.pendingWarCards[this.player1Id].push(p1FaceDown);
     this.pendingWarCards[this.player2Id].push(p2FaceDown);
+
+    this.state = 'ACTIVE';
 
     return { faceDownCards: { [this.player1Id]: p1FaceDown, [this.player2Id]: p2FaceDown } };
   }

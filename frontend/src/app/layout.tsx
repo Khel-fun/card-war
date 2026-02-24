@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import '@rainbow-me/rainbowkit/styles.css';
 import './globals.css';
 import Providers from '@/components/Providers';
+import ClientOnly from '@/components/ClientOnly';
 
 export const metadata: Metadata = {
   title: 'Card War — PvP Card Game',
@@ -11,7 +13,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-war-bg text-white min-h-screen antialiased">
-        <Providers>{children}</Providers>
+        <ClientOnly>
+          <Providers>{children}</Providers>
+        </ClientOnly>
       </body>
     </html>
   );
