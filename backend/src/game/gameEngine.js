@@ -1,6 +1,26 @@
-const { createDeck, shuffle, hashDeck, dealCards } = require('./deck');
+// Lazy-loaded dynamic imports for ESM proving_system modules
+// Cached after first call — concurrency-safe since each game gets its own GameEngine instance
+let _provingModules = null;
+async function getProvingModules() {
+  if (!_provingModules) {
+    const [proveModule, typeModule, circuitsModule] = await Promise.all([
+      import('../proving_system/prove.ts'),
+      import('../proving_system/type.ts'),
+      import('../proving_system/circuits/index.ts'),
+    ]);
+    _provingModules = {
+      generateProof: proveModule.generateProof,
+      CircuitKind: typeModule.CircuitKind,
+      shuffle_deck: circuitsModule.shuffle_deck,
+      deal_cards: circuitsModule.deal_cards,
+      card_to_string: circuitsModule.card_to_string,
+    };
+  }
+  return _provingModules;
+}
 
 const MAX_ROUNDS = 5;
+const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
 
 class GameEngine {
   constructor(gameId, player1Id, player2Id) {
@@ -16,16 +36,98 @@ class GameEngine {
     this.isWar = false;
   }
 
-  setup() {
-    const deck = createDeck();
-    const shuffled = shuffle(deck);
-    this.originalDeck = shuffled;
-    this.deckHash = hashDeck(shuffled);
-    const { player1Hand, player2Hand } = dealCards(shuffled);
-    this.hands[this.player1Id] = player1Hand;
-    this.hands[this.player2Id] = player2Hand;
+  /**
+   * Shuffles and deals cards using ZK circuits, then fires non-blocking proof generation.
+   * @param {string} seed_A - String representation of player 1's join timestamp (Field input)
+   * @param {string} seed_B - String representation of player 2's join timestamp (Field input)
+   * @returns {Promise<{ deckHash: string }>}
+   */
+  async setup(seed_A, seed_B) {
+    const { shuffle_deck, deal_cards, card_to_string, generateProof, CircuitKind } =
+      await getProvingModules();
+
+    // --- Shuffle (in-process Noir witness execution, fast) ---
+    const shuffled_deck_A = await shuffle_deck(seed_A);
+    const shuffled_deck_B = await shuffle_deck(seed_B);
+
+    // --- Deal (in-process Noir witness execution, fast) ---
+    const [dealt_cards_A, dealt_commitment_A] = await deal_cards(shuffled_deck_A, seed_A);
+    const [dealt_cards_B, dealt_commitment_B] = await deal_cards(shuffled_deck_B, seed_B);
+
+    // --- Convert Field card indices to {rank, suit} objects ---
+    const p1Cards = await Promise.all(
+      dealt_cards_A.map(async (card) => {
+        const [rank, suit] = await card_to_string(card);
+        return { rank: Number(rank), suit: SUITS[Number(suit)] };
+      }),
+    );
+    const p2Cards = await Promise.all(
+      dealt_cards_B.map(async (card) => {
+        const [rank, suit] = await card_to_string(card);
+        return { rank: Number(rank), suit: SUITS[Number(suit)] };
+      }),
+    );
+
+    // --- Populate game state ---
+    this.hands[this.player1Id] = p1Cards;
+    this.hands[this.player2Id] = p2Cards;
+    this.originalDeck = [...shuffled_deck_A];
+    this.deckHash = String(dealt_commitment_A);
     this.state = 'ACTIVE';
+
+    // --- Fire-and-forget proof generation (non-blocking) ---
+    this._generateProofsBackground(
+      seed_A, seed_B,
+      shuffled_deck_A, shuffled_deck_B,
+      dealt_cards_A, dealt_commitment_A,
+      dealt_cards_B, dealt_commitment_B,
+      generateProof, CircuitKind,
+    );
+
     return { deckHash: this.deckHash };
+  }
+
+  /**
+   * Generates ZK proofs for shuffle and deal in the background.
+   * Does NOT block gameplay. Errors are logged but do not affect the game.
+   * @private
+   */
+  _generateProofsBackground(
+    seed_A, seed_B,
+    shuffled_deck_A, shuffled_deck_B,
+    dealt_cards_A, dealt_commitment_A,
+    dealt_cards_B, dealt_commitment_B,
+    generateProof, CircuitKind,
+  ) {
+    const gameId = this.gameId;
+
+    Promise.all([
+      generateProof(CircuitKind.SHUFFLE, {
+        seed: seed_A,
+        shuffled_deck: shuffled_deck_A,
+      }),
+      generateProof(CircuitKind.SHUFFLE, {
+        seed: seed_B,
+        shuffled_deck: shuffled_deck_B,
+      }),
+      generateProof(CircuitKind.DEAL, {
+        seed: seed_A,
+        commitment: dealt_commitment_A,
+        cards: dealt_cards_A,
+      }),
+      generateProof(CircuitKind.DEAL, {
+        seed: seed_B,
+        commitment: dealt_commitment_B,
+        cards: dealt_cards_B,
+      }),
+    ])
+      .then(() => {
+        console.log(`[ZK] All proofs generated successfully for game ${gameId}`);
+      })
+      .catch((err) => {
+        console.error(`[ZK] Proof generation failed for game ${gameId}:`, err);
+        // TODO: Add retry logic, emit monitoring event, or enqueue for background retry
+      });
   }
 
   getCardCounts() {

@@ -7,4 +7,4 @@ node_modules
 /backend/src/proving_system/payloads_and_respones
 /backend/src/proving_system/circuits/target/shuffle_*
 /backend/src/proving_system/circuits/target/deal_*
-/backend/src/proving_system/bash00.log
+/backend/bash00.log

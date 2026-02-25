@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon --exec tsx src/index.js"
   },
   "dependencies": {
     "@aztec/bb.js": "0.84.0",
