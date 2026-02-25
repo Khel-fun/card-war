@@ -20,7 +20,6 @@ export interface GameState {
   isWar: boolean;
   gameWinner: string | null;
   message: string | null;
-  wagerAmount: string;
   bothReady: boolean;
   myReady: boolean;
 
@@ -36,7 +35,6 @@ export interface GameState {
   setIsWar: (v: boolean) => void;
   setGameWinner: (id: string | null) => void;
   setMessage: (msg: string | null) => void;
-  setWagerAmount: (amount: string) => void;
   setMyReady: (v: boolean) => void;
   setBothReady: (v: boolean) => void;
   reset: () => void;
@@ -55,7 +53,6 @@ const initialState = {
   isWar: false,
   gameWinner: null,
   message: null,
-  wagerAmount: '0',
   bothReady: false,
   myReady: false,
 };
@@ -74,7 +71,6 @@ export const useGameStore = create<GameState>((set) => ({
   setIsWar: (v) => set({ isWar: v }),
   setGameWinner: (id) => set({ gameWinner: id }),
   setMessage: (msg) => set({ message: msg }),
-  setWagerAmount: (amount) => set({ wagerAmount: amount }),
   setMyReady: (v) => set({ myReady: v }),
   setBothReady: (v) => set({ bothReady: v }),
   reset: () => set(initialState),

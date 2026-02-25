@@ -89,8 +89,8 @@ export default function HomePage() {
         <div className="grid grid-cols-3 gap-4">
           {[
             { icon: '⚡', title: 'Real-time', desc: 'WebSocket instant gameplay' },
-            { icon: '🔒', title: 'Fair', desc: 'Deck hash verified on-chain' },
-            { icon: '💎', title: 'Web3', desc: 'Wager ETH via escrow contract' },
+            { icon: '🔒', title: 'Fair', desc: 'Deck hash published before game' },
+            { icon: '🎮', title: 'PvP', desc: 'Challenge players worldwide' },
           ].map((f) => (
             <div
               key={f.title}
