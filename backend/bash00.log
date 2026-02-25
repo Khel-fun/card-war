@@ -1,0 +1,128 @@
+ ## Registering Verification Keys
+## Setting up Prover for shuffle
+## Generating Verification Key for shuffle
+## Registering Verification Key at Kurier for shuffle
+## Setting up Prover for deal
+## Generating Verification Key for deal
+## Registering Verification Key at Kurier for deal
+=>seed_A: 1771997816892
+ ## Shuffling cards
+ ## Generating Proofs
+## Setting up Prover for shuffle
+## Extracting parameters and matching inputs for shuffle
+## Creating private witness for shuffle
+## Generating Proof for shuffle
+## Verifying Proof w/ BB.js for shuffle
+## vkHash found for shuffle: 0x6c9a04e3105ed4b3fb741188b839b6d41cdbd8220a37a016a1caa1cb682cc00d
+## Submitting Proof to Kurier
+Proof response status code for shuffle: 200
+==> Submit Response:
+ {
+  "jobId": "23415ca2-120c-11f1-ba70-7286ae76ae34",
+  "optimisticVerify": "success"
+}
+## Proof submitted successfully for shuffle. Job ID: 23415ca2-120c-11f1-ba70-7286ae76ae34
+##Job status:  Submitted
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job aggregated successfully
+{
+  jobId: '23415ca2-120c-11f1-ba70-7286ae76ae34',
+  status: 'Aggregated',
+  proofType: 'ultrahonk',
+  chainId: 84532,
+  createdAt: '2026-02-25T05:37:57.000Z',
+  updatedAt: '2026-02-25T05:40:35.000Z',
+  proofOptions: {},
+  txHash: '0x2826dc230c1630142f86d99f19cd860abd6f7aaf7127af22f7e402c952c54153',
+  txExplorerUrl: 'https://zkverify-testnet.subscan.io/extrinsic/0x2826dc230c1630142f86d99f19cd860abd6f7aaf7127af22f7e402c952c54153',
+  blockHash: '0x7b956c183948b22e635acd40f2699a606ed53b0d577de2d5406f99735d4e461d',
+  blockExplorerUrl: 'https://zkverify-testnet.subscan.io/block/0x7b956c183948b22e635acd40f2699a606ed53b0d577de2d5406f99735d4e461d',
+  aggregationId: 17099,
+  statement: '0xc6f06f2b1ad59916ce59a8ad07bb3ec11f1aedf6b69373bb175b0e6121affefb',
+  aggregationDetails: {
+    receipt: '0x048f3cf35cd627330d7eb5c57bc7777441bb1f884c0438fc9a90b2466dfd9645',
+    receiptBlockHash: '0x108c4f896eff8743b9a3fc67b6a4839b5b1844103b54fb8e5137a80f0542bf1a',
+    root: '0x048f3cf35cd627330d7eb5c57bc7777441bb1f884c0438fc9a90b2466dfd9645',
+    leaf: '0xc6f06f2b1ad59916ce59a8ad07bb3ec11f1aedf6b69373bb175b0e6121affefb',
+    leafIndex: 0,
+    numberOfLeaves: 1,
+    merkleProof: []
+  }
+}
+## Aggregation result saved to /home/ally/DevEnv/pvtDock/KH/card-war/backend/src/proving_system/aggregations/17099.json
+
+ ==> SHUFFLE SETTLED
+## Dealing hands
+ ## Generating Proofs
+## Setting up Prover for deal
+## Extracting parameters and matching inputs for deal
+## Creating private witness for deal
+## Generating Proof for deal
+## Verifying Proof w/ BB.js for deal
+## vkHash found for deal: 0x5a621588290eda1d9b9ec3ebd32da228dc0bc14f33be5293e0fc8cdcc292009e
+## Submitting Proof to Kurier
+Proof response status code for deal: 200
+==> Submit Response:
+ {
+  "jobId": "8e824e3c-120c-11f1-ba70-7286ae76ae34",
+  "optimisticVerify": "success"
+}
+## Proof submitted successfully for deal. Job ID: 8e824e3c-120c-11f1-ba70-7286ae76ae34
+##Job status:  Submitted
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job status:  AggregationPending
+==> Waiting for job to be aggregated...
+##Job aggregated successfully
+{
+  jobId: '8e824e3c-120c-11f1-ba70-7286ae76ae34',
+  status: 'Aggregated',
+  proofType: 'ultrahonk',
+  chainId: 84532,
+  createdAt: '2026-02-25T05:40:57.000Z',
+  updatedAt: '2026-02-25T05:43:40.000Z',
+  proofOptions: {},
+  txHash: '0x07f7157190f322f08b91708a54ce9785ff5bd58a0856f10bbf6ff1fa4e3b1926',
+  txExplorerUrl: 'https://zkverify-testnet.subscan.io/extrinsic/0x07f7157190f322f08b91708a54ce9785ff5bd58a0856f10bbf6ff1fa4e3b1926',
+  blockHash: '0xb379c70813e1a50caf2f0c52f9abfb935e2fc09dd915a69dcce8575ea97352fa',
+  blockExplorerUrl: 'https://zkverify-testnet.subscan.io/block/0xb379c70813e1a50caf2f0c52f9abfb935e2fc09dd915a69dcce8575ea97352fa',
+  aggregationId: 17100,
+  statement: '0x89cd599b0c6c2a6c0937a19d78cb15863149a128218fd42d1ea32a71a5eda47a',
+  aggregationDetails: {
+    receipt: '0x7f25517a2aa864f5846e739bbcd0bf7f495682ef0dd99cbf8e4cffa7037c2779',
+    receiptBlockHash: '0x6cf3ba3c83d3dfd2be2ff90fbacccfa774e2d556873b8fecb9b416cb0252172a',
+    root: '0x7f25517a2aa864f5846e739bbcd0bf7f495682ef0dd99cbf8e4cffa7037c2779',
+    leaf: '0x89cd599b0c6c2a6c0937a19d78cb15863149a128218fd42d1ea32a71a5eda47a',
+    leafIndex: 0,
+    numberOfLeaves: 1,
+    merkleProof: []
+  }
+}
+## Aggregation result saved to /home/ally/DevEnv/pvtDock/KH/card-war/backend/src/proving_system/aggregations/17100.json
+
+ ==> DEAL SETTLED
