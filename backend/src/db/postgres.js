@@ -21,8 +21,6 @@ async function initDB() {
       winner_id UUID REFERENCES users(id),
       deck_hash VARCHAR(64),
       original_deck JSONB,
-      wager_amount NUMERIC(20, 8) DEFAULT 0,
-      contract_game_id VARCHAR(66),
       created_at TIMESTAMPTZ DEFAULT NOW(),
       ended_at TIMESTAMPTZ
     );

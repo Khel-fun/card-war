@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useGameStore } from '@/store/gameStore';
 import { useSocket, emitJoinQueue } from '@/hooks/useSocket';
-import { useCreateGame, useJoinGame } from '@/hooks/useEscrow';
 
 const BG = 'radial-gradient(ellipse at center bottom, #7c2d12 0%, #431407 30%, #1c0a02 60%, #0a0500 100%)';
 const FIRE = `
@@ -33,14 +32,9 @@ const goldBtn = {
 export default function LobbyPage() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const { status, gameId, wagerAmount, setWagerAmount, reset } = useGameStore();
-  const [wagerInput, setWagerInput] = useState('0');
-  const [useWager, setUseWager] = useState(false);
+  const { status, reset } = useGameStore();
 
   useSocket(address);
-
-  const { create, isPending: isCreating, isSuccess: createSuccess } = useCreateGame(gameId || '', wagerInput);
-  const { join, isPending: isJoining, isSuccess: joinSuccess } = useJoinGame(gameId || '', wagerInput);
 
   useEffect(() => {
     if (status === 'active') {
@@ -104,36 +98,6 @@ export default function LobbyPage() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.1 }}
       >
-        {/* Wager toggle */}
-        <div className="flex items-center justify-between">
-          <span className="font-bold tracking-widest text-sm uppercase" style={{ color: '#d4a74a' }}>Wager ETH</span>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" className="sr-only peer" checked={useWager} onChange={(e) => setUseWager(e.target.checked)} />
-            <div className="w-11 h-6 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"
-              style={{ background: useWager ? '#b8860b' : 'rgba(255,255,255,0.1)', border: '1px solid rgba(120,80,26,0.5)' }} />
-          </label>
-        </div>
-
-        {/* Wager input */}
-        {useWager && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="flex flex-col gap-2">
-            <label className="text-xs uppercase tracking-widest font-bold" style={{ color: 'rgba(212,167,74,0.7)' }}>Wager Amount (ETH)</label>
-            <input
-              type="number" min="0" step="0.001" value={wagerInput} placeholder="0.01"
-              onChange={(e) => { setWagerInput(e.target.value); setWagerAmount(e.target.value); }}
-              className="rounded-xl px-4 py-3 text-white focus:outline-none transition-colors"
-              style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(120,80,26,0.5)', color: '#fff' }}
-            />
-            <p className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>Both players must match this wager via smart contract</p>
-          </motion.div>
-        )}
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1" style={{ background: 'rgba(120,80,26,0.4)' }} />
-          <span style={{ color: 'rgba(120,80,26,0.6)', fontSize: 11 }}>⚔</span>
-          <div className="h-px flex-1" style={{ background: 'rgba(120,80,26,0.4)' }} />
-        </div>
 
         {/* Find Match button */}
         {status === 'idle' && (
@@ -178,7 +142,6 @@ export default function LobbyPage() {
 
       <p className="relative z-10 text-xs text-center max-w-sm" style={{ color: 'rgba(255,255,255,0.2)' }}>
         Games are provably fair — deck hash published before cards are dealt.
-        {useWager && <span className="block mt-1" style={{ color: 'rgba(245,158,11,0.5)' }}>⚠ Wager requires both players to lock ETH in escrow.</span>}
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 # 🃏 Card War — PvP Card Game
 
-Real-time 1v1 War card game with WebSocket gameplay and Web3 wagering via smart contract escrow.
+Real-time 1v1 War card game with WebSocket gameplay.
 
 ## Project Structure
 
@@ -26,7 +26,7 @@ npm run dev
 
 Requires: PostgreSQL + Redis running locally.
 
-### 2. Contract
+### 2. Contract (Optional - for on-chain state tracking)
 
 ```bash
 cd contract
@@ -36,7 +36,7 @@ npx hardhat node                          # local chain
 npx hardhat run scripts/deploy.js --network localhost
 ```
 
-The deploy script writes the ABI + address to `frontend/src/contracts/CardWarEscrow.json`.
+The deploy script writes the ABI + address to `frontend/src/contracts/CardWarRegistry.json`.
 
 ### 3. Frontend
 
@@ -55,10 +55,10 @@ npm run dev
 |-------|------|
 | Real-time | Socket.io |
 | Game state | In-memory (Matchmaker) + PostgreSQL |
+| On-chain registry | Solidity (CardWarRegistry) - optional |
 | Cache | Redis (optional, for scaling) |
 | Frontend | Next.js 14 App Router |
-| Web3 | Wagmi v2 + RainbowKit + viem |
-| Contract | Solidity 0.8.24 + OpenZeppelin |
+| Wallet | Wagmi v2 + RainbowKit + viem |
 
 ## Socket Events
 
@@ -76,13 +76,22 @@ npm run dev
 | `game_end` | Server → Client | Game over + winner |
 | `opponent_disconnected` | Server → Client | Opponent left |
 
-## Smart Contract
+## Smart Contract (Optional)
 
-`CardWarEscrow.sol` — escrow for wagers:
-- `createGame(gameId)` — player1 locks ETH
-- `joinGame(gameId)` — player2 matches wager
-- `settleGame(gameId, winner)` — operator pays winner (3% house fee)
-- `cancelGame(gameId)` — refund if no opponent joined
+`CardWarRegistry.sol` — on-chain game state registry for transparency:
+- **No wagers or payments** — purely for provable fairness
+- `createGame(gameId, deckHash)` — player1 registers game on-chain with deck hash
+- `joinGame(gameId)` — player2 joins the registered game
+- `completeGame(gameId, winner)` — operator records winner on-chain
+- `cancelGame(gameId)` — cancel if no opponent joined
+
+The contract provides an immutable, transparent record of:
+- Game participants (player1 & player2 addresses)
+- Deck hash (SHA-256) published before game starts
+- Game outcome (winner address)
+- Timestamps (created, completed)
+
+This allows anyone to verify game fairness by checking the on-chain record against the revealed deck after the game ends.
 
 ## Anti-Cheat
 

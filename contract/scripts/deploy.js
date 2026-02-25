@@ -6,12 +6,12 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log('Deploying with:', deployer.address);
 
-  const CardWarEscrow = await hre.ethers.getContractFactory('CardWarEscrow');
-  const escrow = await CardWarEscrow.deploy();
-  await escrow.waitForDeployment();
+  const CardWarRegistry = await hre.ethers.getContractFactory('CardWarRegistry');
+  const registry = await CardWarRegistry.deploy();
+  await registry.waitForDeployment();
 
-  const address = await escrow.getAddress();
-  console.log('CardWarEscrow deployed to:', address);
+  const address = await registry.getAddress();
+  console.log('CardWarRegistry deployed to:', address);
 
   const deploymentInfo = {
     network: hre.network.name,
@@ -30,13 +30,13 @@ async function main() {
   const frontendAbiDir = path.join(__dirname, '../../frontend/src/contracts');
   if (!fs.existsSync(frontendAbiDir)) fs.mkdirSync(frontendAbiDir, { recursive: true });
 
-  const artifact = await hre.artifacts.readArtifact('CardWarEscrow');
+  const artifact = await hre.artifacts.readArtifact('CardWarRegistry');
   fs.writeFileSync(
-    path.join(frontendAbiDir, 'CardWarEscrow.json'),
+    path.join(frontendAbiDir, 'CardWarRegistry.json'),
     JSON.stringify({ address, abi: artifact.abi }, null, 2)
   );
 
-  console.log('ABI + address written to frontend/src/contracts/CardWarEscrow.json');
+  console.log('ABI + address written to frontend/src/contracts/CardWarRegistry.json');
 }
 
 main().catch((err) => {
