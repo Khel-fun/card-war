@@ -58,6 +58,14 @@ function setupSocketHandlers(io) {
              VALUES ($1, $2, $3, 'ACTIVE', $4)`,
             [gameId, p1DbId, p2DbId, JSON.stringify(game.engine.originalDeck)]
           );
+
+          await pool.query(
+            `INSERT INTO game_sessions (session_uuid, players)
+             VALUES ($1::uuid, $2::char(42)[])
+             ON CONFLICT (session_uuid) DO UPDATE
+             SET players = EXCLUDED.players`,
+            [gameId, [player1Id, player2Id]]
+          );
         } catch (err) {
           console.error('DB game insert error:', err.message);
         }
@@ -190,6 +198,10 @@ function setupSocketHandlers(io) {
           `UPDATE games SET status = 'CLOSED', ended_at = NOW() WHERE id = $1`,
           [gameId]
         ).catch(console.error);
+        pool.query(
+          `UPDATE game_sessions SET ended_at = NOW() WHERE session_uuid = $1::uuid`,
+          [gameId]
+        ).catch(console.error);
       }
     });
   });
@@ -214,6 +226,12 @@ async function handleGameOver(io, game, winnerId, gameId) {
     await pool.query(
       `UPDATE games SET status = 'CLOSED', winner_id = $1, ended_at = NOW() WHERE id = $2`,
       [winnerRow.rows[0]?.id, gameId]
+    );
+    await pool.query(
+      `UPDATE game_sessions
+       SET winner = $1::char(42)[], ended_at = NOW()
+       WHERE session_uuid = $2::uuid`,
+      [[winnerId], gameId]
     );
   } catch (err) {
     console.error('Game over DB error:', err.message);

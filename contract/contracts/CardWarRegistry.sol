@@ -3,6 +3,17 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+interface IVerifyProofAggregation {
+    function verifyProofAggregation(
+        uint256 _domainId,
+        uint256 _aggregationId,
+        bytes32 _leaf,
+        bytes32[] calldata _merklePath,
+        uint256 _leafCount,
+        uint256 _index
+    ) external view returns (bool);
+}
+
 /// @title CardWarRegistry
 /// @notice On-chain registry for Card War game state tracking.
 ///         No wagers - purely for transparency and provable fairness.
@@ -21,12 +32,22 @@ contract CardWarRegistry is Ownable {
 
     mapping(bytes32 => Game) public games;
     mapping(address => bool) public operators;
+    address public zkVerify;
 
     event GameCreated(bytes32 indexed gameKey, string gameId, address indexed player1);
     event GameJoined(bytes32 indexed gameKey, address indexed player2);
     event GameCompleted(bytes32 indexed gameKey, address indexed winner);
     event GameCancelled(bytes32 indexed gameKey);
     event OperatorSet(address indexed operator, bool enabled);
+    event ZkVerifyUpdated(address indexed zkVerify);
+    event ProofAggregationVerified(
+        bytes32 indexed gameKey,
+        uint256 domainId,
+        uint256 aggregationId,
+        bytes32 leaf,
+        bool verified,
+        address indexed caller
+    );
 
     modifier onlyOperator() {
         require(operators[msg.sender] || msg.sender == owner(), "Not operator");
@@ -40,6 +61,12 @@ contract CardWarRegistry is Ownable {
     function setOperator(address operator, bool enabled) external onlyOwner {
         operators[operator] = enabled;
         emit OperatorSet(operator, enabled);
+    }
+
+    function updateZkVerify(address _zkVerify) external onlyOwner {
+        require(_zkVerify != address(0), "Invalid zkVerify address");
+        zkVerify = _zkVerify;
+        emit ZkVerifyUpdated(_zkVerify);
     }
 
     /// @notice Player1 creates a game and registers it on-chain
@@ -106,5 +133,54 @@ contract CardWarRegistry is Ownable {
     function getGame(string calldata gameId) external view returns (Game memory) {
         bytes32 gameKey = keccak256(abi.encodePacked(gameId));
         return games[gameKey];
+    }
+
+    function verifyProofAggregation(
+        uint256 _domainId,
+        uint256 _aggregationId,
+        bytes32 _leaf,
+        bytes32[] calldata _merklePath,
+        uint256 _leafCount,
+        uint256 _index
+    ) public view returns (bool) {
+        require(zkVerify != address(0), "zkVerify not set");
+        return IVerifyProofAggregation(zkVerify).verifyProofAggregation(
+            _domainId,
+            _aggregationId,
+            _leaf,
+            _merklePath,
+            _leafCount,
+            _index
+        );
+    }
+
+    function recordProofAggregationVerification(
+        bytes32 gameKey,
+        uint256 _domainId,
+        uint256 _aggregationId,
+        bytes32 _leaf,
+        bytes32[] calldata _merklePath,
+        uint256 _leafCount,
+        uint256 _index
+    ) external onlyOperator returns (bool) {
+        bool verified = verifyProofAggregation(
+            _domainId,
+            _aggregationId,
+            _leaf,
+            _merklePath,
+            _leafCount,
+            _index
+        );
+        require(verified, "Aggregation proof invalid");
+
+        emit ProofAggregationVerified(
+            gameKey,
+            _domainId,
+            _aggregationId,
+            _leaf,
+            verified,
+            msg.sender
+        );
+        return true;
     }
 }

@@ -13,9 +13,17 @@ async function main() {
   const address = await registry.getAddress();
   console.log('CardWarRegistry deployed to:', address);
 
+  const zkVerifyAddress = process.env.ZKVERIFY_CONTRACT_ADDRESS;
+  if (zkVerifyAddress) {
+    const tx = await registry.updateZkVerify(zkVerifyAddress);
+    await tx.wait();
+    console.log('Configured zkVerify address:', zkVerifyAddress);
+  }
+
   const deploymentInfo = {
     network: hre.network.name,
     address,
+    zkVerifyAddress: zkVerifyAddress || null,
     deployer: deployer.address,
     deployedAt: new Date().toISOString(),
   };

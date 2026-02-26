@@ -128,20 +128,32 @@ class GameEngine {
       generateProof(CircuitKind.SHUFFLE, {
         seed: seed_A,
         shuffled_deck: shuffled_deck_A,
+      }, {
+        gameId,
+        playerAddress: this.player1Id,
       }),
       generateProof(CircuitKind.SHUFFLE, {
         seed: seed_B,
         shuffled_deck: shuffled_deck_B,
+      }, {
+        gameId,
+        playerAddress: this.player2Id,
       }),
       generateProof(CircuitKind.DEAL, {
         seed: seed_A,
         commitment: dealt_commitment_A,
         cards: dealt_cards_A,
+      }, {
+        gameId,
+        playerAddress: this.player1Id,
       }),
       generateProof(CircuitKind.DEAL, {
         seed: seed_B,
         commitment: dealt_commitment_B,
         cards: dealt_cards_B,
+      }, {
+        gameId,
+        playerAddress: this.player2Id,
       }),
     ])
       .then(([shuffleA, shuffleB, dealA, dealB]) => {
@@ -153,14 +165,42 @@ class GameEngine {
             CircuitKind.SHUFFLE,
             shuffleA.proofHex,
             shuffleA.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player1Id,
+              proofUuid: shuffleA.proofUuid,
+            },
           ),
           verifyProof(
             CircuitKind.SHUFFLE,
             shuffleB.proofHex,
             shuffleB.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player2Id,
+              proofUuid: shuffleB.proofUuid,
+            },
           ),
-          verifyProof(CircuitKind.DEAL, dealA.proofHex, dealA.publicInputs),
-          verifyProof(CircuitKind.DEAL, dealB.proofHex, dealB.publicInputs),
+          verifyProof(
+            CircuitKind.DEAL,
+            dealA.proofHex,
+            dealA.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player1Id,
+              proofUuid: dealA.proofUuid,
+            },
+          ),
+          verifyProof(
+            CircuitKind.DEAL,
+            dealB.proofHex,
+            dealB.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player2Id,
+              proofUuid: dealB.proofUuid,
+            },
+          ),
         ]);
       })
       .then(() => {
