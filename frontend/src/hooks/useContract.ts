@@ -9,12 +9,12 @@ export function useCreateGame() {
   const { writeContract, data: hash, isPending, isError, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  const create = (gameId: string, deckHash: string) => {
+  const create = (gameId: string) => {
     writeContract({
       address: CONTRACT_ADDRESS,
       abi: CONTRACT_ABI,
       functionName: 'createGame',
-      args: [gameId, deckHash],
+      args: [gameId],
     });
   };
 

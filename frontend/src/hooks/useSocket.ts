@@ -23,13 +23,11 @@ export function useSocket(walletAddress: string | undefined) {
 
     socket.on('game_start', (data: {
       gameId: string;
-      deckHash: string;
       player1Id: string;
       player2Id: string;
       cardCounts: { [key: string]: number };
     }) => {
       store.setGameId(data.gameId);
-      store.setDeckHash(data.deckHash);
       store.setCardCounts(data.cardCounts);
       store.setStatus('active');
       store.setMessage('Game started! Both players flip to begin.');

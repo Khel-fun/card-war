@@ -12,7 +12,7 @@ import Link from 'next/link';
 export default function GamePage() {
   const { address } = useAccount();
   const router = useRouter();
-  const { status, gameWinner, playerId, roundNumber, cardCounts, deckHash, reset } = useGameStore();
+  const { status, gameWinner, playerId, roundNumber, cardCounts, reset } = useGameStore();
 
   useSocket(address);
 
@@ -72,13 +72,6 @@ export default function GamePage() {
               <p className="text-4xl font-bold text-white font-display">{opponentScore}</p>
             </div>
           </div>
-
-          {deckHash && (
-            <div className="mb-6 max-w-sm mx-auto px-4 py-3 rounded-xl" style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(245,158,11,0.2)' }}>
-              <p className="text-xs text-amber-400/50 mb-1">Deck Hash</p>
-              <p className="font-mono text-xs text-amber-300/40 break-all">{deckHash}</p>
-            </div>
-          )}
 
           <div className="flex gap-4 justify-center">
             <Link href="/lobby">

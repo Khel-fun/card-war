@@ -23,7 +23,7 @@ class Matchmaker {
       const opponent = this.waitingPlayers.shift();
       const gameId = uuidv4();
       const engine = new GameEngine(gameId, opponent.playerId, playerId);
-      const { deckHash } = engine.setup();
+      engine.setup();
 
       const game = {
         gameId,
@@ -32,7 +32,6 @@ class Matchmaker {
           [opponent.playerId]: { socketId: opponent.socketId, walletAddress: opponent.walletAddress },
           [playerId]: { socketId, walletAddress },
         },
-        deckHash,
         readyFlips: new Set(),
       };
 
@@ -43,7 +42,6 @@ class Matchmaker {
       return {
         type: 'game_start',
         gameId,
-        deckHash,
         opponent: { playerId: opponent.playerId, walletAddress: opponent.walletAddress },
         self: { playerId, walletAddress },
         player1Id: opponent.playerId,

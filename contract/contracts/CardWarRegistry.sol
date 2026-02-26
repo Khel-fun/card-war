@@ -15,7 +15,6 @@ contract CardWarRegistry is Ownable {
         GameStatus status;
         address winner;
         string gameId; // off-chain UUID
-        string deckHash; // SHA-256 hash of shuffled deck
         uint256 createdAt;
         uint256 completedAt;
     }
@@ -23,7 +22,7 @@ contract CardWarRegistry is Ownable {
     mapping(bytes32 => Game) public games;
     mapping(address => bool) public operators;
 
-    event GameCreated(bytes32 indexed gameKey, string gameId, address indexed player1, string deckHash);
+    event GameCreated(bytes32 indexed gameKey, string gameId, address indexed player1);
     event GameJoined(bytes32 indexed gameKey, address indexed player2);
     event GameCompleted(bytes32 indexed gameKey, address indexed winner);
     event GameCancelled(bytes32 indexed gameKey);
@@ -44,7 +43,7 @@ contract CardWarRegistry is Ownable {
     }
 
     /// @notice Player1 creates a game and registers it on-chain
-    function createGame(string calldata gameId, string calldata deckHash) external {
+    function createGame(string calldata gameId) external {
         bytes32 gameKey = keccak256(abi.encodePacked(gameId));
         require(games[gameKey].status == GameStatus.None, "Game already exists");
 
@@ -54,12 +53,11 @@ contract CardWarRegistry is Ownable {
             status: GameStatus.WaitingForPlayer2,
             winner: address(0),
             gameId: gameId,
-            deckHash: deckHash,
             createdAt: block.timestamp,
             completedAt: 0
         });
 
-        emit GameCreated(gameKey, gameId, msg.sender, deckHash);
+        emit GameCreated(gameKey, gameId, msg.sender);
     }
 
     /// @notice Player2 joins the game

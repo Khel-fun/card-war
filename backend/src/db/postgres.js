@@ -19,7 +19,6 @@ async function initDB() {
       player2_id UUID REFERENCES users(id),
       status VARCHAR(20) DEFAULT 'WAITING',
       winner_id UUID REFERENCES users(id),
-      deck_hash VARCHAR(64),
       original_deck JSONB,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       ended_at TIMESTAMPTZ

@@ -80,23 +80,21 @@ npm run dev
 
 `CardWarRegistry.sol` — on-chain game state registry for transparency:
 - **No wagers or payments** — purely for provable fairness
-- `createGame(gameId, deckHash)` — player1 registers game on-chain with deck hash
+- `createGame(gameId)` — player1 registers game on-chain
 - `joinGame(gameId)` — player2 joins the registered game
 - `completeGame(gameId, winner)` — operator records winner on-chain
 - `cancelGame(gameId)` — cancel if no opponent joined
 
 The contract provides an immutable, transparent record of:
 - Game participants (player1 & player2 addresses)
-- Deck hash (SHA-256) published before game starts
 - Game outcome (winner address)
 - Timestamps (created, completed)
 
-This allows anyone to verify game fairness by checking the on-chain record against the revealed deck after the game ends.
+This allows anyone to verify game results by checking the on-chain record.
 
 ## Anti-Cheat
 
 - Backend controls shuffle (Fisher-Yates + `crypto.randomInt`)
-- SHA-256 deck hash published at game start
 - Full deck revealed via API after game ends (`GET /api/games/:id/reveal`)
 
 ## WalletConnect

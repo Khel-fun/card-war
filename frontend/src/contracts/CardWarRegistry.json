@@ -80,12 +80,6 @@
           "internalType": "address",
           "name": "player1",
           "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "deckHash",
-          "type": "string"
         }
       ],
       "name": "GameCreated",
@@ -185,11 +179,6 @@
           "internalType": "string",
           "name": "gameId",
           "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "deckHash",
-          "type": "string"
         }
       ],
       "name": "createGame",
@@ -230,11 +219,6 @@
         {
           "internalType": "string",
           "name": "gameId",
-          "type": "string"
-        },
-        {
-          "internalType": "string",
-          "name": "deckHash",
           "type": "string"
         },
         {
@@ -286,11 +270,6 @@
             {
               "internalType": "string",
               "name": "gameId",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "deckHash",
               "type": "string"
             },
             {

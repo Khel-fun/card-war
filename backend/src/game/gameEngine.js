@@ -11,7 +11,6 @@ class GameEngine {
     this.roundNumber = 0;
     this.hands = { [player1Id]: [], [player2Id]: [] };
     this.originalDeck = null;
-    this.deckHash = null;
     this.pendingWarCards = { [player1Id]: [], [player2Id]: [] };
     this.isWar = false;
   }
@@ -20,12 +19,11 @@ class GameEngine {
     const deck = createDeck();
     const shuffled = shuffle(deck);
     this.originalDeck = shuffled;
-    this.deckHash = hashDeck(shuffled);
     const { player1Hand, player2Hand } = dealCards(shuffled);
     this.hands[this.player1Id] = player1Hand;
     this.hands[this.player2Id] = player2Hand;
     this.state = 'ACTIVE';
-    return { deckHash: this.deckHash };
+    return {};
   }
 
   getCardCounts() {

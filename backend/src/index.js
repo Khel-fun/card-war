@@ -21,17 +21,6 @@ app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-app.get('/api/games/:gameId/deck-hash', async (req, res) => {
-  try {
-    const { gameId } = req.params;
-    const result = await pool.query('SELECT deck_hash FROM games WHERE id = $1', [gameId]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Game not found' });
-    res.json({ deckHash: result.rows[0].deck_hash });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.get('/api/games/:gameId/reveal', async (req, res) => {
   try {
     const { gameId } = req.params;

@@ -36,7 +36,7 @@ function setupSocketHandlers(io) {
       } else if (result.type === 'already_in_game') {
         socket.emit('error', { message: 'Already in a game', gameId: result.gameId });
       } else if (result.type === 'game_start') {
-        const { gameId, deckHash, player1Id, player2Id, opponent, self } = result;
+        const { gameId, player1Id, player2Id, opponent, self } = result;
         const game = matchmaker.getGame(gameId);
 
         try {
@@ -46,9 +46,9 @@ function setupSocketHandlers(io) {
           const p2DbId = p2Row.rows[0]?.id;
 
           await pool.query(
-            `INSERT INTO games (id, player1_id, player2_id, status, deck_hash, original_deck)
-             VALUES ($1, $2, $3, 'ACTIVE', $4, $5)`,
-            [gameId, p1DbId, p2DbId, deckHash, JSON.stringify(game.engine.originalDeck)]
+            `INSERT INTO games (id, player1_id, player2_id, status, original_deck)
+             VALUES ($1, $2, $3, 'ACTIVE', $4)`,
+            [gameId, p1DbId, p2DbId, JSON.stringify(game.engine.originalDeck)]
           );
         } catch (err) {
           console.error('DB game insert error:', err.message);
@@ -62,7 +62,6 @@ function setupSocketHandlers(io) {
 
         io.to(gameId).emit('game_start', {
           gameId,
-          deckHash,
           player1Id,
           player2Id,
           cardCounts: gameState.cardCounts,

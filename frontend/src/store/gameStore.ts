@@ -13,7 +13,6 @@ export interface GameState {
   role: 'player1' | 'player2' | null;
   opponentId: string | null;
   status: GameStatus;
-  deckHash: string | null;
   cardCounts: { [playerId: string]: number };
   lastFlip: { player1Card: Card | null; player2Card: Card | null; winner: string | null } | null;
   roundNumber: number;
@@ -28,7 +27,6 @@ export interface GameState {
   setRole: (role: 'player1' | 'player2') => void;
   setOpponentId: (id: string) => void;
   setStatus: (status: GameStatus) => void;
-  setDeckHash: (hash: string) => void;
   setCardCounts: (counts: { [key: string]: number }) => void;
   setLastFlip: (flip: GameState['lastFlip']) => void;
   setRoundNumber: (n: number) => void;
@@ -46,7 +44,6 @@ const initialState = {
   role: null,
   opponentId: null,
   status: 'idle' as GameStatus,
-  deckHash: null,
   cardCounts: {},
   lastFlip: null,
   roundNumber: 0,
@@ -64,7 +61,6 @@ export const useGameStore = create<GameState>((set) => ({
   setRole: (role) => set({ role }),
   setOpponentId: (id) => set({ opponentId: id }),
   setStatus: (status) => set({ status }),
-  setDeckHash: (hash) => set({ deckHash: hash }),
   setCardCounts: (counts) => set({ cardCounts: counts }),
   setLastFlip: (flip) => set({ lastFlip: flip }),
   setRoundNumber: (n) => set({ roundNumber: n }),
