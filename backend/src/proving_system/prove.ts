@@ -94,7 +94,7 @@ export async function registerVk(circuit_name: CircuitKind) {
 export async function generateProof(
   circuit_name: CircuitKind,
   inputs: Record<string, any>,
-) {
+): Promise<{ proofHex: string; publicInputs: string[] }> {
   const { noir, backend } = setupProver(circuit_name);
 
   console.log(
@@ -111,6 +111,7 @@ export async function generateProof(
     keccak: true,
   });
 
+  // TODO: Remove files on storing to db
   const PATH_TO_PROOF_HEX = path.join(
     __dirname,
     "circuits",
@@ -149,6 +150,13 @@ export async function generateProof(
   if (!is_valid) {
     throw new Error("[ERR: Proof] Proof verification failed");
   }
+
+  return {
+    proofHex,
+    publicInputs: proof_data.publicInputs.map((pi) =>
+      pi.startsWith("0x") ? pi : `0x${pi}`,
+    ),
+  };
 }
 
 export async function verifyProof(
@@ -194,6 +202,7 @@ export async function verifyProof(
     submissionMode: "attestation",
   };
 
+  // TODO: for beta-testing, keep payloads and responses in db
   const payloads_path = path.join(__dirname, "payloads_and_respones");
   if (!fs.existsSync(payloads_path)) {
     fs.mkdirSync(payloads_path, { recursive: true });
@@ -247,7 +256,7 @@ export async function verifyProof(
       console.log("##Job aggregated successfully");
       console.log(job_status_response.data);
 
-      // Create aggregations directory if it doesn't exist
+      // TODO: Remove files on storing to db
       const aggregations_dir = path.join(__dirname, "aggregations");
       if (!fs.existsSync(aggregations_dir)) {
         fs.mkdirSync(aggregations_dir, { recursive: true });

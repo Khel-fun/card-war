@@ -4,12 +4,13 @@ let _provingModules = null;
 async function getProvingModules() {
   if (!_provingModules) {
     const [proveModule, typeModule, circuitsModule] = await Promise.all([
-      import('../proving_system/prove.ts'),
-      import('../proving_system/type.ts'),
-      import('../proving_system/circuits/index.ts'),
+      import("../proving_system/prove.ts"),
+      import("../proving_system/type.ts"),
+      import("../proving_system/circuits/index.ts"),
     ]);
     _provingModules = {
       generateProof: proveModule.generateProof,
+      verifyProof: proveModule.verifyProof,
       CircuitKind: typeModule.CircuitKind,
       shuffle_deck: circuitsModule.shuffle_deck,
       deal_cards: circuitsModule.deal_cards,
@@ -20,14 +21,14 @@ async function getProvingModules() {
 }
 
 const MAX_ROUNDS = 5;
-const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+const SUITS = ["hearts", "diamonds", "clubs", "spades"];
 
 class GameEngine {
   constructor(gameId, player1Id, player2Id) {
     this.gameId = gameId;
     this.player1Id = player1Id;
     this.player2Id = player2Id;
-    this.state = 'WAITING';
+    this.state = "WAITING";
     this.roundNumber = 0;
     this.hands = { [player1Id]: [], [player2Id]: [] };
     this.originalDeck = null;
@@ -43,16 +44,28 @@ class GameEngine {
    * @returns {Promise<{ deckHash: string }>}
    */
   async setup(seed_A, seed_B) {
-    const { shuffle_deck, deal_cards, card_to_string, generateProof, CircuitKind } =
-      await getProvingModules();
+    const {
+      shuffle_deck,
+      deal_cards,
+      card_to_string,
+      generateProof,
+      verifyProof,
+      CircuitKind,
+    } = await getProvingModules();
 
     // --- Shuffle (in-process Noir witness execution, fast) ---
     const shuffled_deck_A = await shuffle_deck(seed_A);
     const shuffled_deck_B = await shuffle_deck(seed_B);
 
     // --- Deal (in-process Noir witness execution, fast) ---
-    const [dealt_cards_A, dealt_commitment_A] = await deal_cards(shuffled_deck_A, seed_A);
-    const [dealt_cards_B, dealt_commitment_B] = await deal_cards(shuffled_deck_B, seed_B);
+    const [dealt_cards_A, dealt_commitment_A] = await deal_cards(
+      shuffled_deck_A,
+      seed_A,
+    );
+    const [dealt_cards_B, dealt_commitment_B] = await deal_cards(
+      shuffled_deck_B,
+      seed_B,
+    );
 
     // --- Convert Field card indices to {rank, suit} objects ---
     const p1Cards = await Promise.all(
@@ -72,16 +85,22 @@ class GameEngine {
     this.hands[this.player1Id] = p1Cards;
     this.hands[this.player2Id] = p2Cards;
     this.originalDeck = [...shuffled_deck_A];
-    this.deckHash = String(dealt_commitment_A);
-    this.state = 'ACTIVE';
+    this.deckHash = String(dealt_commitment_A); // TODO; Remove deckHash tracking
+    this.state = "ACTIVE";
 
     // --- Fire-and-forget proof generation (non-blocking) ---
-    this._generateProofsBackground(
-      seed_A, seed_B,
-      shuffled_deck_A, shuffled_deck_B,
-      dealt_cards_A, dealt_commitment_A,
-      dealt_cards_B, dealt_commitment_B,
-      generateProof, CircuitKind,
+    this._generateAndVerifyProofsBackground(
+      seed_A,
+      seed_B,
+      shuffled_deck_A,
+      shuffled_deck_B,
+      dealt_cards_A,
+      dealt_commitment_A,
+      dealt_cards_B,
+      dealt_commitment_B,
+      generateProof,
+      verifyProof,
+      CircuitKind,
     );
 
     return { deckHash: this.deckHash };
@@ -92,12 +111,18 @@ class GameEngine {
    * Does NOT block gameplay. Errors are logged but do not affect the game.
    * @private
    */
-  _generateProofsBackground(
-    seed_A, seed_B,
-    shuffled_deck_A, shuffled_deck_B,
-    dealt_cards_A, dealt_commitment_A,
-    dealt_cards_B, dealt_commitment_B,
-    generateProof, CircuitKind,
+  _generateAndVerifyProofsBackground(
+    seed_A,
+    seed_B,
+    shuffled_deck_A,
+    shuffled_deck_B,
+    dealt_cards_A,
+    dealt_commitment_A,
+    dealt_cards_B,
+    dealt_commitment_B,
+    generateProof,
+    verifyProof,
+    CircuitKind,
   ) {
     const gameId = this.gameId;
 
@@ -121,12 +146,30 @@ class GameEngine {
         cards: dealt_cards_B,
       }),
     ])
+      .then(([shuffleA, shuffleB, dealA, dealB]) => {
+        // Each element is { proofHex: string, publicInputs: string[] }
+        // publicInputs already normalized with 0x prefix
+        console.log("[ZK] All proofs generated successfully for game", gameId);
+        return Promise.all([
+          verifyProof(
+            CircuitKind.SHUFFLE,
+            shuffleA.proofHex,
+            shuffleA.publicInputs,
+          ),
+          verifyProof(
+            CircuitKind.SHUFFLE,
+            shuffleB.proofHex,
+            shuffleB.publicInputs,
+          ),
+          verifyProof(CircuitKind.DEAL, dealA.proofHex, dealA.publicInputs),
+          verifyProof(CircuitKind.DEAL, dealB.proofHex, dealB.publicInputs),
+        ]);
+      })
       .then(() => {
-        console.log(`[ZK] All proofs generated successfully for game ${gameId}`);
+        console.log(`[ZK] All proofs verified successfully for game ${gameId}`);
       })
       .catch((err) => {
-        console.error(`[ZK] Proof generation failed for game ${gameId}:`, err);
-        // TODO: Add retry logic, emit monitoring event, or enqueue for background retry
+        console.error(`[ZK] Proof processes failed for game ${gameId}:`, err);
       });
   }
 
@@ -138,7 +181,7 @@ class GameEngine {
   }
 
   flipCards() {
-    if (this.state !== 'ACTIVE' && this.state !== 'WAR') {
+    if (this.state !== "ACTIVE" && this.state !== "WAR") {
       throw new Error(`Cannot flip in state: ${this.state}`);
     }
     if (this.roundNumber >= MAX_ROUNDS) {
@@ -164,22 +207,32 @@ class GameEngine {
     };
 
     if (p1Card.rank > p2Card.rank) {
-      const winnings = [p1Card, p2Card, ...this.pendingWarCards[this.player1Id], ...this.pendingWarCards[this.player2Id]];
+      const winnings = [
+        p1Card,
+        p2Card,
+        ...this.pendingWarCards[this.player1Id],
+        ...this.pendingWarCards[this.player2Id],
+      ];
       this.hands[this.player1Id].push(...winnings);
       this.pendingWarCards[this.player1Id] = [];
       this.pendingWarCards[this.player2Id] = [];
       result.winner = this.player1Id;
-      this.state = 'RESOLVED';
+      this.state = "RESOLVED";
     } else if (p2Card.rank > p1Card.rank) {
-      const winnings = [p1Card, p2Card, ...this.pendingWarCards[this.player1Id], ...this.pendingWarCards[this.player2Id]];
+      const winnings = [
+        p1Card,
+        p2Card,
+        ...this.pendingWarCards[this.player1Id],
+        ...this.pendingWarCards[this.player2Id],
+      ];
       this.hands[this.player2Id].push(...winnings);
       this.pendingWarCards[this.player1Id] = [];
       this.pendingWarCards[this.player2Id] = [];
       result.winner = this.player2Id;
-      this.state = 'RESOLVED';
+      this.state = "RESOLVED";
     } else {
       result.isWar = true;
-      this.state = 'WAR';
+      this.state = "WAR";
       this.pendingWarCards[this.player1Id].push(p1Card);
       this.pendingWarCards[this.player2Id].push(p2Card);
     }
@@ -189,9 +242,9 @@ class GameEngine {
       if (gameOver) {
         result.gameOver = true;
         result.gameWinner = gameOver;
-        this.state = 'CLOSED';
+        this.state = "CLOSED";
       } else {
-        this.state = 'ACTIVE';
+        this.state = "ACTIVE";
       }
     }
 
@@ -199,18 +252,26 @@ class GameEngine {
   }
 
   resolveWar() {
-    if (this.state !== 'WAR') throw new Error('Not in war state');
+    if (this.state !== "WAR") throw new Error("Not in war state");
 
     const p1 = this.hands[this.player1Id];
     const p2 = this.hands[this.player2Id];
 
     if (p1.length === 0) {
-      this.state = 'CLOSED';
-      return { gameOver: true, gameWinner: this.player2Id, reason: 'no_cards_for_war' };
+      this.state = "CLOSED";
+      return {
+        gameOver: true,
+        gameWinner: this.player2Id,
+        reason: "no_cards_for_war",
+      };
     }
     if (p2.length === 0) {
-      this.state = 'CLOSED';
-      return { gameOver: true, gameWinner: this.player1Id, reason: 'no_cards_for_war' };
+      this.state = "CLOSED";
+      return {
+        gameOver: true,
+        gameWinner: this.player1Id,
+        reason: "no_cards_for_war",
+      };
     }
 
     const p1FaceDown = p1.shift();
@@ -218,9 +279,14 @@ class GameEngine {
     this.pendingWarCards[this.player1Id].push(p1FaceDown);
     this.pendingWarCards[this.player2Id].push(p2FaceDown);
 
-    this.state = 'ACTIVE';
+    this.state = "ACTIVE";
 
-    return { faceDownCards: { [this.player1Id]: p1FaceDown, [this.player2Id]: p2FaceDown } };
+    return {
+      faceDownCards: {
+        [this.player1Id]: p1FaceDown,
+        [this.player2Id]: p2FaceDown,
+      },
+    };
   }
 
   _checkGameOver() {
@@ -233,8 +299,12 @@ class GameEngine {
     const p1Count = this.hands[this.player1Id].length;
     const p2Count = this.hands[this.player2Id].length;
     const winner = p1Count >= p2Count ? this.player1Id : this.player2Id;
-    this.state = 'CLOSED';
-    return { gameOver: true, gameWinner: winner, reason: 'timeout_or_max_rounds' };
+    this.state = "CLOSED";
+    return {
+      gameOver: true,
+      gameWinner: winner,
+      reason: "timeout_or_max_rounds",
+    };
   }
 
   serialize() {
@@ -243,7 +313,7 @@ class GameEngine {
       state: this.state,
       roundNumber: this.roundNumber,
       cardCounts: this.getCardCounts(),
-      isWar: this.state === 'WAR',
+      isWar: this.state === "WAR",
     };
   }
 }
