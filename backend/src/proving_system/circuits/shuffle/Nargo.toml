@@ -1,0 +1,7 @@
+[package]
+name = "shuffle"
+type = "bin"
+authors = [""]
+
+[dependencies]
+assist = { path = "../assist" }

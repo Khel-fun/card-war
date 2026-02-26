@@ -15,6 +15,7 @@ function setupSocketHandlers(io) {
       }
 
       const playerId = walletAddress.toLowerCase();
+      const joinTimestamp = Date.now();
 
       try {
         await pool.query(
@@ -29,7 +30,14 @@ function setupSocketHandlers(io) {
       socket.data.playerId = playerId;
       socket.data.walletAddress = walletAddress;
 
-      const result = matchmaker.addPlayer(playerId, socket.id, walletAddress);
+      let result;
+      try {
+        result = await matchmaker.addPlayer(playerId, socket.id, walletAddress, joinTimestamp);
+      } catch (err) {
+        console.error('Matchmaker error:', err.message);
+        socket.emit('error', { message: 'Failed to join game. Please try again.' });
+        return;
+      }
 
       if (result.type === 'waiting') {
         socket.emit('queue_joined', { message: 'Waiting for opponent...' });

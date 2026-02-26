@@ -1,2 +1,10 @@
 node_modules
 .next
+
+.env
+
+/backend/src/proving_system/aggregations
+/backend/src/proving_system/payloads_and_respones
+/backend/src/proving_system/circuits/target/shuffle_*
+/backend/src/proving_system/circuits/target/deal_*
+/backend/bash00.log

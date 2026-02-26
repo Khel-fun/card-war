@@ -1,0 +1,7 @@
+[package]
+name = "deal"
+type = "bin"
+authors = [""]
+
+[dependencies]
+assist = { path = "../assist" }

@@ -8,7 +8,7 @@ class Matchmaker {
     this.playerToGame = new Map();
   }
 
-  addPlayer(playerId, socketId, walletAddress) {
+  async addPlayer(playerId, socketId, walletAddress, joinTimestamp) {
     if (this.playerToGame.has(playerId)) {
       return { type: 'already_in_game', gameId: this.playerToGame.get(playerId) };
     }
@@ -23,7 +23,11 @@ class Matchmaker {
       const opponent = this.waitingPlayers.shift();
       const gameId = uuidv4();
       const engine = new GameEngine(gameId, opponent.playerId, playerId);
-      engine.setup();
+
+      // Use join timestamps as deterministic seeds (string representation of Date.now())
+      const seed_A = String(opponent.joinTimestamp);
+      const seed_B = String(joinTimestamp);
+      await engine.setup(seed_A, seed_B);
 
       const game = {
         gameId,
@@ -49,7 +53,7 @@ class Matchmaker {
       };
     }
 
-    this.waitingPlayers.push({ playerId, socketId, walletAddress });
+    this.waitingPlayers.push({ playerId, socketId, walletAddress, joinTimestamp });
     return { type: 'waiting' };
   }
 
