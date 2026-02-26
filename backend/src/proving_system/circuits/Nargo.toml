@@ -1,0 +1,3 @@
+[workspace]
+members = ["assist", "shuffle", "deal"]
+default-member = "assist"
