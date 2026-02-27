@@ -1,6 +1,5 @@
 type OnChainAggregationInput = {
   gameId: string;
-  domainId: number;
   aggregationId: number;
   leaf: string;
   merklePath: string[];
@@ -11,14 +10,16 @@ type OnChainAggregationInput = {
 type OnChainAggregationResult = {
   attempted: boolean;
   verified: boolean;
+  domainId: number | null;
   txHash: string | null;
   contractAddress: string | null;
   error?: string;
 };
 
 const registryAbi = [
-  "function verifyProofAggregation(uint256,uint256,bytes32,bytes32[],uint256,uint256) view returns (bool)",
-  "function recordProofAggregationVerification(bytes32,uint256,uint256,bytes32,bytes32[],uint256,uint256) returns (bool)",
+  "function domainId() view returns (uint256)",
+  "function verifyProofAggregation(uint256,bytes32,bytes32[],uint256,uint256) view returns (bool)",
+  "function recordProofAggregationVerification(bytes32,uint256,bytes32,bytes32[],uint256,uint256) returns (bool)",
 ];
 
 function ensureHexPrefixed(value: string): string {
@@ -36,6 +37,7 @@ export async function verifyAndRecordAggregationOnChain(
     return {
       attempted: false,
       verified: false,
+      domainId: null,
       txHash: null,
       contractAddress: registryAddress || null,
       error:
@@ -50,6 +52,7 @@ export async function verifyAndRecordAggregationOnChain(
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(privateKey, provider);
     const contract = new ethers.Contract(registryAddress, registryAbi, wallet);
+    const configuredDomainId = Number(await contract.domainId());
 
     const leaf = ethers.zeroPadValue(ensureHexPrefixed(input.leaf), 32);
     const merklePath = input.merklePath.map((node) =>
@@ -57,7 +60,6 @@ export async function verifyAndRecordAggregationOnChain(
     );
 
     const verified = await contract.verifyProofAggregation(
-      input.domainId,
       input.aggregationId,
       leaf,
       merklePath,
@@ -69,6 +71,7 @@ export async function verifyAndRecordAggregationOnChain(
       return {
         attempted: true,
         verified: false,
+        domainId: configuredDomainId,
         txHash: null,
         contractAddress: registryAddress,
       };
@@ -77,7 +80,6 @@ export async function verifyAndRecordAggregationOnChain(
     const gameKey = ethers.keccak256(ethers.toUtf8Bytes(input.gameId));
     const tx = await contract.recordProofAggregationVerification(
       gameKey,
-      input.domainId,
       input.aggregationId,
       leaf,
       merklePath,
@@ -89,6 +91,7 @@ export async function verifyAndRecordAggregationOnChain(
     return {
       attempted: true,
       verified: true,
+      domainId: configuredDomainId,
       txHash: receipt?.hash ?? tx.hash ?? null,
       contractAddress: registryAddress,
     };
@@ -96,6 +99,7 @@ export async function verifyAndRecordAggregationOnChain(
     return {
       attempted: true,
       verified: false,
+      domainId: null,
       txHash: null,
       contractAddress: registryAddress,
       error: error?.message || "On-chain aggregation verification failed",

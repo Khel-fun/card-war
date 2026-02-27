@@ -5,9 +5,13 @@ const path = require('path');
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log('Deploying with:', deployer.address);
+  const domainId = Number(process.env.ZKVERIFY_DOMAIN_ID || '0');
+  if (!Number.isFinite(domainId) || domainId < 0) {
+    throw new Error('ZKVERIFY_DOMAIN_ID must be a non-negative integer');
+  }
 
   const CardWarRegistry = await hre.ethers.getContractFactory('CardWarRegistry');
-  const registry = await CardWarRegistry.deploy();
+  const registry = await CardWarRegistry.deploy(domainId);
   await registry.waitForDeployment();
 
   const address = await registry.getAddress();
@@ -24,6 +28,7 @@ async function main() {
     network: hre.network.name,
     address,
     zkVerifyAddress: zkVerifyAddress || null,
+    domainId,
     deployer: deployer.address,
     deployedAt: new Date().toISOString(),
   };

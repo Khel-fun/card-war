@@ -8,13 +8,16 @@ async function getProvingModules() {
       import("../proving_system/type.ts"),
       import("../proving_system/circuits/index.ts"),
     ]);
+    const prove = proveModule.default || proveModule;
+    const type = typeModule.default || typeModule;
+    const circuits = circuitsModule.default || circuitsModule;
     _provingModules = {
-      generateProof: proveModule.generateProof,
-      verifyProof: proveModule.verifyProof,
-      CircuitKind: typeModule.CircuitKind,
-      shuffle_deck: circuitsModule.shuffle_deck,
-      deal_cards: circuitsModule.deal_cards,
-      card_to_string: circuitsModule.card_to_string,
+      generateProof: prove.generateProof,
+      verifyProof: prove.verifyProof,
+      CircuitKind: type.CircuitKind,
+      shuffle_deck: circuits.shuffle_deck,
+      deal_cards: circuits.deal_cards,
+      card_to_string: circuits.card_to_string,
     };
   }
   return _provingModules;

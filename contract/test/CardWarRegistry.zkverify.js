@@ -6,13 +6,14 @@ describe("CardWarRegistry zkVerify integration", function () {
     const [owner, operator, other] = await ethers.getSigners();
     const Registry = await ethers.getContractFactory("CardWarRegistry");
     const MockZkVerify = await ethers.getContractFactory("MockZkVerify");
+    const domainId = 7;
 
-    const registry = await Registry.deploy();
+    const registry = await Registry.deploy(domainId);
     await registry.waitForDeployment();
     const mock = await MockZkVerify.deploy();
     await mock.waitForDeployment();
 
-    return { registry, mock, owner, operator, other };
+    return { registry, mock, owner, operator, other, domainId };
   }
 
   it("allows only owner to set zkVerify", async function () {
@@ -25,10 +26,9 @@ describe("CardWarRegistry zkVerify integration", function () {
   });
 
   it("forwards verifyProofAggregation to zkVerify contract", async function () {
-    const { registry, mock } = await deployFixture();
+    const { registry, mock, domainId } = await deployFixture();
     await registry.updateZkVerify(await mock.getAddress());
 
-    const domainId = 7;
     const aggregationId = 123;
     const leaf = ethers.keccak256(ethers.toUtf8Bytes("leaf"));
     const merklePath = [ethers.keccak256(ethers.toUtf8Bytes("path0"))];
@@ -36,7 +36,6 @@ describe("CardWarRegistry zkVerify integration", function () {
     const leafIndex = 0;
 
     const isVerified = await registry.verifyProofAggregation(
-      domainId,
       aggregationId,
       leaf,
       merklePath,
@@ -48,12 +47,11 @@ describe("CardWarRegistry zkVerify integration", function () {
   });
 
   it("allows only operator/owner to record verification", async function () {
-    const { registry, mock, operator, other } = await deployFixture();
+    const { registry, mock, operator, other, domainId } = await deployFixture();
     await registry.updateZkVerify(await mock.getAddress());
     await registry.setOperator(operator.address, true);
 
     const gameKey = ethers.keccak256(ethers.toUtf8Bytes("game-1"));
-    const domainId = 7;
     const aggregationId = 123;
     const leaf = ethers.keccak256(ethers.toUtf8Bytes("leaf"));
     const merklePath = [ethers.keccak256(ethers.toUtf8Bytes("path0"))];
@@ -63,7 +61,6 @@ describe("CardWarRegistry zkVerify integration", function () {
     await expect(
       registry.connect(other).recordProofAggregationVerification(
         gameKey,
-        domainId,
         aggregationId,
         leaf,
         merklePath,
@@ -75,7 +72,6 @@ describe("CardWarRegistry zkVerify integration", function () {
     await expect(
       registry.connect(operator).recordProofAggregationVerification(
         gameKey,
-        domainId,
         aggregationId,
         leaf,
         merklePath,
@@ -99,7 +95,6 @@ describe("CardWarRegistry zkVerify integration", function () {
     await expect(
       registry.recordProofAggregationVerification(
         gameKey,
-        7,
         456,
         leaf,
         merklePath,

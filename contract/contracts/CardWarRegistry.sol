@@ -33,6 +33,7 @@ contract CardWarRegistry is Ownable {
     mapping(bytes32 => Game) public games;
     mapping(address => bool) public operators;
     address public zkVerify;
+    uint256 public immutable domainId;
 
     event GameCreated(bytes32 indexed gameKey, string gameId, address indexed player1);
     event GameJoined(bytes32 indexed gameKey, address indexed player2);
@@ -54,7 +55,8 @@ contract CardWarRegistry is Ownable {
         _;
     }
 
-    constructor() Ownable(msg.sender) {
+    constructor(uint256 _domainId) Ownable(msg.sender) {
+        domainId = _domainId;
         operators[msg.sender] = true;
     }
 
@@ -136,7 +138,6 @@ contract CardWarRegistry is Ownable {
     }
 
     function verifyProofAggregation(
-        uint256 _domainId,
         uint256 _aggregationId,
         bytes32 _leaf,
         bytes32[] calldata _merklePath,
@@ -145,7 +146,7 @@ contract CardWarRegistry is Ownable {
     ) public view returns (bool) {
         require(zkVerify != address(0), "zkVerify not set");
         return IVerifyProofAggregation(zkVerify).verifyProofAggregation(
-            _domainId,
+            domainId,
             _aggregationId,
             _leaf,
             _merklePath,
@@ -156,7 +157,6 @@ contract CardWarRegistry is Ownable {
 
     function recordProofAggregationVerification(
         bytes32 gameKey,
-        uint256 _domainId,
         uint256 _aggregationId,
         bytes32 _leaf,
         bytes32[] calldata _merklePath,
@@ -164,7 +164,6 @@ contract CardWarRegistry is Ownable {
         uint256 _index
     ) external onlyOperator returns (bool) {
         bool verified = verifyProofAggregation(
-            _domainId,
             _aggregationId,
             _leaf,
             _merklePath,
@@ -175,7 +174,7 @@ contract CardWarRegistry is Ownable {
 
         emit ProofAggregationVerified(
             gameKey,
-            _domainId,
+            domainId,
             _aggregationId,
             _leaf,
             verified,

@@ -20,14 +20,16 @@ type TrackingContext = {
   gameId?: string;
   playerAddress?: string;
   proofUuid?: string | null;
-  domainId?: number;
 };
 
 type EnsureCircuitResult = {
   circuitUuid: string | null;
-  vkHash: string;
+  vkHash: string | null;
   verificationKeyHex: string;
 };
+
+const _circuitSetupCache = new Map<CircuitKind, EnsureCircuitResult>();
+const _circuitSetupInFlight = new Map<CircuitKind, Promise<EnsureCircuitResult>>();
 
 function hashString(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
@@ -54,6 +56,10 @@ async function safeTrack<T>(label: string, fn: () => Promise<T>): Promise<T | nu
     console.error(`[TRACKING] ${label} failed:`, error?.message || error);
     return null;
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // setting up Noir and UltraHonk Backend for specific circuit
@@ -105,14 +111,35 @@ export async function registerVk(
   };
 
   console.log(`## Registering Verification Key at Kurier for ${circuit_name}`);
-  const reg_vk_response = await axios.post(
-    `${KURIER_URL}/register-vk/${KURIER_API}`,
-    vk_payload,
-  );
+  let vkHash: string | null = null;
+  try {
+    const reg_vk_response = await axios.post(
+      `${KURIER_URL}/register-vk/${KURIER_API}`,
+      vk_payload,
+    );
+    vkHash = reg_vk_response.data?.vkHash || reg_vk_response.data?.meta?.vkHash;
+  } catch (error: any) {
+    const isAlreadyRegistered =
+      error?.response?.status === 400 &&
+      error?.response?.data?.code === "REGISTER_VK_FAILED" &&
+      String(error?.response?.data?.message || "").includes("uniq_vk_hash");
 
-  const vkHash = reg_vk_response.data?.vkHash || reg_vk_response.data?.meta?.vkHash;
-  if (!vkHash) {
-    throw new Error("[ERR: ZKV] Verification key hash missing from Kurier response");
+    if (!isAlreadyRegistered) {
+      throw error;
+    }
+
+    // Another concurrent proof flow already registered this VK.
+    // Wait briefly and fetch the active circuit row that should now include vk_hash.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await sleep(200 * (attempt + 1));
+      const active = await safeTrack("fetch active circuit after vk conflict", async () =>
+        trackingService.getActiveCircuit(circuit_name),
+      );
+      if (active?.vk_hash) {
+        vkHash = active.vk_hash;
+        break;
+      }
+    }
   }
 
   const setupRow = await safeTrack("upsert circuit setup", async () => {
@@ -123,7 +150,7 @@ export async function registerVk(
       kind: circuit_name,
       compiledCircuit: circuit,
       verificationKeyHex,
-      vkHash,
+      vkHash: vkHash || "0x" + hashString(verificationKeyHex).slice(0, 64),
       artifactSha256,
       sessionUuid: context.gameId,
     });
@@ -131,7 +158,7 @@ export async function registerVk(
 
   return {
     circuitUuid: setupRow?.circuit_uuid ?? null,
-    vkHash,
+    vkHash: vkHash || setupRow?.vk_hash || null,
     verificationKeyHex,
   };
 }
@@ -140,31 +167,52 @@ async function ensureCircuitSetup(
   circuit_name: CircuitKind,
   context: TrackingContext,
 ): Promise<EnsureCircuitResult> {
-  const activeCircuit = await safeTrack("fetch active circuit", async () =>
-    trackingService.getActiveCircuit(circuit_name),
-  );
-
-  if (activeCircuit?.vk_hash) {
-    if (context.gameId) {
-      await safeTrack("link active circuit to session", async () =>
-        trackingService.upsertCircuitSetup({
-          kind: circuit_name,
-          compiledCircuit: activeCircuit.compiled_circuit,
-          verificationKeyHex: activeCircuit.vkey_hex,
-          vkHash: activeCircuit.vk_hash,
-          artifactSha256: activeCircuit.artifact_sha256,
-          sessionUuid: context.gameId,
-        }),
-      );
-    }
-    return {
-      circuitUuid: activeCircuit.circuit_uuid ?? null,
-      vkHash: activeCircuit.vk_hash,
-      verificationKeyHex: activeCircuit.vkey_hex,
-    };
+  const cached = _circuitSetupCache.get(circuit_name);
+  if (cached) {
+    return cached;
   }
 
-  return registerVk(circuit_name, context);
+  const inFlight = _circuitSetupInFlight.get(circuit_name);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const setupPromise = (async () => {
+    const activeCircuit = await safeTrack("fetch active circuit", async () =>
+      trackingService.getActiveCircuit(circuit_name),
+    );
+
+    if (activeCircuit?.vk_hash) {
+      if (context.gameId) {
+        await safeTrack("link active circuit to session", async () =>
+          trackingService.upsertCircuitSetup({
+            kind: circuit_name,
+            compiledCircuit: activeCircuit.compiled_circuit,
+            verificationKeyHex: activeCircuit.vkey_hex,
+            vkHash: activeCircuit.vk_hash,
+            artifactSha256: activeCircuit.artifact_sha256,
+            sessionUuid: context.gameId,
+          }),
+        );
+      }
+      return {
+        circuitUuid: activeCircuit.circuit_uuid ?? null,
+        vkHash: activeCircuit.vk_hash,
+        verificationKeyHex: activeCircuit.vkey_hex,
+      };
+    }
+
+    return registerVk(circuit_name, context);
+  })();
+
+  _circuitSetupInFlight.set(circuit_name, setupPromise);
+  try {
+    const result = await setupPromise;
+    _circuitSetupCache.set(circuit_name, result);
+    return result;
+  } finally {
+    _circuitSetupInFlight.delete(circuit_name);
+  }
 }
 
 // generating circuit specific ultrahonk proof with the given inputs
@@ -238,14 +286,17 @@ export async function verifyProof(
 
   const circuitSetup = await ensureCircuitSetup(circuit_name, context);
   const vkHash = circuitSetup.vkHash;
-  if (!vkHash) {
-    throw new Error("[ERR: ZKV] Verification key hash not found");
+  if (vkHash) {
+    console.log(`## vkHash found for ${circuit_name}: ${vkHash}`);
+  } else {
+    console.log(
+      `[WARN: ZKV] vkHash unavailable for ${circuit_name}; submitting with full verification key`,
+    );
   }
-  console.log(`## vkHash found for ${circuit_name}: ${vkHash}`);
 
   const proofPayload = {
     proofType: "ultrahonk",
-    vkRegistered: true,
+    vkRegistered: Boolean(vkHash),
     chainId: 84532,
     proofOptions: {
       variant: "Plain",
@@ -253,7 +304,7 @@ export async function verifyProof(
     proofData: {
       proof: `${proofHex}`,
       publicSignals: normalizePublicInputs(formattedPublicInputs),
-      vk: vkHash as string,
+      vk: vkHash || circuitSetup.verificationKeyHex,
     },
     submissionMode: "attestation",
   };
@@ -278,25 +329,38 @@ export async function verifyProof(
   );
 
   const proofUuid = context.proofUuid ?? null;
-  if (proofUuid && context.gameId) {
-    await safeTrack("persist proof submission", async () =>
-      trackingService.attachProofSubmission(
-        context.gameId!,
-        proofUuid,
-        jobId,
-        proofPayload,
-        submitResponse.data,
-      ),
-    );
-  }
-
-  await safeTrack("upsert submitted job", async () =>
-    trackingService.upsertVerificationJob({
+  let submittedJobPersisted = false;
+  try {
+    await trackingService.upsertVerificationJob({
       jobId,
       status: "Submitted",
       aggregationResponse: submitResponse.data,
-    }),
-  );
+    });
+    submittedJobPersisted = true;
+  } catch (error: any) {
+    console.error(
+      "[TRACKING] upsert submitted job failed:",
+      error?.message || error,
+    );
+  }
+
+  if (proofUuid && context.gameId) {
+    if (!submittedJobPersisted) {
+      console.warn(
+        `[TRACKING] skipping proof submission attach for ${proofUuid} because verification job ${jobId} was not persisted`,
+      );
+    } else {
+      await safeTrack("persist proof submission", async () =>
+        trackingService.attachProofSubmission(
+          context.gameId!,
+          proofUuid,
+          jobId,
+          proofPayload,
+          submitResponse.data,
+        ),
+      );
+    }
+  }
 
   while (true) {
     const jobStatusResponse = await axios.get(
@@ -334,18 +398,17 @@ export async function verifyProof(
       const leafCount = toNumberOrNull(aggregationDetails?.numberOfLeaves);
       const leafIndex = toNumberOrNull(aggregationDetails?.leafIndex);
       const domainIdFromEnv = toNumberOrNull(process.env.ZKVERIFY_DOMAIN_ID);
-      const domainId = context.domainId ?? domainIdFromEnv;
 
       let onchain = {
         attempted: false,
         verified: false,
+        domainId: null as number | null,
         txHash: null as string | null,
         contractAddress: process.env.CARDWAR_REGISTRY_ADDRESS || null,
       };
 
       if (
         context.gameId &&
-        domainId !== null &&
         aggregationId !== null &&
         leaf &&
         merkleProof.length > 0 &&
@@ -354,7 +417,6 @@ export async function verifyProof(
       ) {
         onchain = await verifyAndRecordAggregationOnChain({
           gameId: context.gameId,
-          domainId,
           aggregationId,
           leaf,
           merklePath: merkleProof,
@@ -362,6 +424,7 @@ export async function verifyProof(
           leafIndex,
         });
       }
+      const resolvedDomainId = onchain.domainId ?? domainIdFromEnv;
 
       if (proofUuid) {
         await safeTrack("update proof onchain status", async () =>
@@ -374,7 +437,7 @@ export async function verifyProof(
 
       if (
         proofUuid &&
-        domainId !== null &&
+        resolvedDomainId !== null &&
         aggregationId !== null &&
         leaf &&
         merkleProof.length > 0 &&
@@ -388,7 +451,7 @@ export async function verifyProof(
               onchain.contractAddress ||
               process.env.CARDWAR_REGISTRY_ADDRESS ||
               "unconfigured",
-            domainId,
+            domainId: resolvedDomainId,
             aggregationId,
             leaf,
             merklePath: merkleProof,
@@ -404,7 +467,7 @@ export async function verifyProof(
         jobId,
         status: jobStatus,
         aggregationId,
-        domainId,
+        domainId: resolvedDomainId,
         onchain,
       };
     } else if (jobStatus === "Failed") {
