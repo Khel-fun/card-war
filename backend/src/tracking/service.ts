@@ -4,6 +4,8 @@ import {
   TrackingRepository,
   VerificationJobPayload,
   AggregationVerificationPayload,
+  SessionProofJobRow,
+  ReconcileCandidateJobRow,
 } from "./repository";
 
 const require = createRequire(import.meta.url);
@@ -111,6 +113,19 @@ class TrackingService {
   async recordAggregationVerification(payload: AggregationVerificationPayload) {
     if (!this.enabled) return;
     await this.repository.insertAggregationVerification(payload);
+  }
+
+  async getSessionProofJobs(sessionUuid: string): Promise<SessionProofJobRow[]> {
+    if (!this.enabled || !sessionUuid) return [];
+    return this.repository.getSessionProofJobs(sessionUuid);
+  }
+
+  async getStaleJobsForReconciliation(
+    limit: number,
+    staleSeconds: number,
+  ): Promise<ReconcileCandidateJobRow[]> {
+    if (!this.enabled) return [];
+    return this.repository.getStaleJobsForReconciliation(limit, staleSeconds);
   }
 }
 

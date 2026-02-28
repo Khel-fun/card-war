@@ -1,0 +1,8 @@
+{
+  "network": "baseSepolia",
+  "address": "0x93Ce97C9d03423A3F1CE1c4F8746019B1496aA19",
+  "zkVerifyAddress": "0x0807C544D38aE7729f8798388d89Be6502A1e8A8",
+  "domainId": 2,
+  "deployer": "0x14d67Eece2ce6312b20f9721351C6AeD500aF7Db",
+  "deployedAt": "2026-02-28T05:44:34.145Z"
+}

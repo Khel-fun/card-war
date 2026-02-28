@@ -58,6 +58,24 @@ export type AggregationVerificationPayload = {
   txHash?: string | null;
 };
 
+export type SessionProofJobRow = {
+  job_id: string;
+  status: VerificationJobPayload["status"] | null;
+  aggregation_id: number | null;
+  leaf: string | null;
+  leaf_index: number | null;
+  number_of_leaves: number | null;
+  merkle_proof: string[] | null;
+  proof_uuid: string | null;
+  onchain_verification_status: boolean | null;
+};
+
+export type ReconcileCandidateJobRow = {
+  job_id: string;
+  status: VerificationJobPayload["status"];
+  session_uuid: string | null;
+};
+
 export class TrackingRepository {
   constructor(private readonly pool: PoolLike) {}
 
@@ -288,5 +306,61 @@ export class TrackingRepository {
         payload.txHash ?? null,
       ],
     );
+  }
+
+  async getSessionProofJobs(sessionUuid: string): Promise<SessionProofJobRow[]> {
+    const result = await this.pool.query(
+      `
+      SELECT
+        j.job_id::text AS job_id,
+        vj.status,
+        vj.aggregation_id,
+        vj.leaf,
+        vj.leaf_index,
+        vj.number_of_leaves,
+        vj.merkle_proof,
+        p.proof_uuid::text AS proof_uuid,
+        p.onchain_verification_status
+      FROM game_sessions gs
+      CROSS JOIN LATERAL unnest(COALESCE(gs.job_ids, '{}'::uuid[]))
+        WITH ORDINALITY AS j(job_id, ord)
+      LEFT JOIN verification_jobs vj
+        ON vj.job_id = j.job_id
+      LEFT JOIN proofs p
+        ON p.session_uuid = gs.session_uuid
+       AND p.job_id = j.job_id
+      WHERE gs.session_uuid = $1::uuid
+      ORDER BY j.ord
+      `,
+      [sessionUuid],
+    );
+    return result.rows as SessionProofJobRow[];
+  }
+
+  async getStaleJobsForReconciliation(
+    limit: number,
+    staleSeconds: number,
+  ): Promise<ReconcileCandidateJobRow[]> {
+    const result = await this.pool.query(
+      `
+      SELECT
+        vj.job_id::text AS job_id,
+        vj.status,
+        (
+          SELECT gs.session_uuid::text
+          FROM game_sessions gs
+          WHERE vj.job_id = ANY(COALESCE(gs.job_ids, '{}'::uuid[]))
+          ORDER BY gs.created_at DESC
+          LIMIT 1
+        ) AS session_uuid
+      FROM verification_jobs vj
+      WHERE vj.status IN ('Submitted', 'Queued', 'IncludedInBlock', 'AggregationPending')
+        AND vj.updated_at < NOW() - ($2::int * interval '1 second')
+      ORDER BY vj.updated_at ASC
+      LIMIT $1
+      `,
+      [limit, staleSeconds],
+    );
+    return result.rows as ReconcileCandidateJobRow[];
   }
 }

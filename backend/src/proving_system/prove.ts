@@ -28,6 +28,16 @@ type EnsureCircuitResult = {
   verificationKeyHex: string;
 };
 
+type SessionOnChainVerificationSummary = {
+  gameId: string;
+  totalJobs: number;
+  verifiedCount: number;
+  failedCount: number;
+  skippedAlreadyVerified: number;
+  skippedNotAggregated: number;
+  skippedMissingData: number;
+};
+
 const _circuitSetupCache = new Map<CircuitKind, EnsureCircuitResult>();
 const _circuitSetupInFlight = new Map<CircuitKind, Promise<EnsureCircuitResult>>();
 
@@ -362,10 +372,29 @@ export async function verifyProof(
     }
   }
 
+  let transientPollFailures = 0;
   while (true) {
-    const jobStatusResponse = await axios.get(
-      `${KURIER_URL}/job-status/${KURIER_API}/${jobId}`,
-    );
+    let jobStatusResponse;
+    try {
+      jobStatusResponse = await axios.get(
+        `${KURIER_URL}/job-status/${KURIER_API}/${jobId}`,
+      );
+      transientPollFailures = 0;
+    } catch (error: any) {
+      transientPollFailures += 1;
+      const code = error?.code || "UNKNOWN";
+      console.warn(
+        `[WARN: ZKV] polling job-status failed for ${jobId} (${code}), attempt ${transientPollFailures}`,
+      );
+      if (transientPollFailures >= 10) {
+        throw new Error(
+          `[ERR: ZKV] job status polling failed repeatedly for ${jobId}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      continue;
+    }
+
     const jobStatus = jobStatusResponse.data?.status;
     const aggregationDetails = jobStatusResponse.data?.aggregationDetails || null;
 
@@ -484,4 +513,121 @@ export async function verifyProof(
       await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 20 seconds before checking again
     }
   }
+}
+
+export async function verifySessionAggregationsOnChain(
+  gameId: string,
+): Promise<SessionOnChainVerificationSummary> {
+  const rows =
+    (await safeTrack("fetch session proof jobs", async () =>
+      trackingService.getSessionProofJobs(gameId),
+    )) ?? [];
+
+  const summary: SessionOnChainVerificationSummary = {
+    gameId,
+    totalJobs: rows.length,
+    verifiedCount: 0,
+    failedCount: 0,
+    skippedAlreadyVerified: 0,
+    skippedNotAggregated: 0,
+    skippedMissingData: 0,
+  };
+
+  if (rows.length === 0) {
+    console.warn(`[ZK: SESSION] no tracked jobs found for game ${gameId}`);
+    return summary;
+  }
+
+  const domainIdFromEnv = toNumberOrNull(process.env.ZKVERIFY_DOMAIN_ID);
+  for (const row of rows) {
+    const jobId = row.job_id;
+    if (row.onchain_verification_status === true) {
+      summary.skippedAlreadyVerified += 1;
+      continue;
+    }
+
+    if (row.status !== "Aggregated") {
+      summary.skippedNotAggregated += 1;
+      console.log(
+        `[ZK: SESSION] skipping job ${jobId} for game ${gameId}: status=${row.status || "unknown"}`,
+      );
+      continue;
+    }
+
+    const aggregationId = toNumberOrNull(row.aggregation_id);
+    const leaf = row.leaf ?? null;
+    const merklePath = Array.isArray(row.merkle_proof) ? row.merkle_proof : [];
+    const leafCount = toNumberOrNull(row.number_of_leaves);
+    const leafIndex = toNumberOrNull(row.leaf_index);
+    const proofUuid = row.proof_uuid ?? null;
+
+    if (
+      aggregationId === null ||
+      !leaf ||
+      merklePath.length === 0 ||
+      leafCount === null ||
+      leafIndex === null
+    ) {
+      summary.skippedMissingData += 1;
+      console.warn(
+        `[ZK: SESSION] skipping job ${jobId} for game ${gameId}: missing aggregation details`,
+      );
+      continue;
+    }
+
+    const onchain = await verifyAndRecordAggregationOnChain({
+      gameId,
+      aggregationId,
+      leaf,
+      merklePath,
+      leafCount,
+      leafIndex,
+    });
+
+    const resolvedDomainId = onchain.domainId ?? domainIdFromEnv;
+    if (proofUuid) {
+      await safeTrack("update proof onchain status (session)", async () =>
+        trackingService.setProofOnchainVerificationStatus(
+          proofUuid,
+          onchain.attempted ? onchain.verified : null,
+        ),
+      );
+
+      if (resolvedDomainId !== null) {
+        await safeTrack("insert aggregation verification (session)", async () =>
+          trackingService.recordAggregationVerification({
+            proofUuid,
+            zkverifyContractAddress:
+              onchain.contractAddress ||
+              process.env.CARDWAR_REGISTRY_ADDRESS ||
+              "unconfigured",
+            domainId: resolvedDomainId,
+            aggregationId,
+            leaf,
+            merklePath,
+            leafCount,
+            leafIndex,
+            verified: onchain.verified,
+            txHash: onchain.txHash,
+          }),
+        );
+      }
+    } else {
+      console.warn(
+        `[ZK: SESSION] missing proof_uuid for game ${gameId}, job ${jobId}; on-chain result not persisted to proofs`,
+      );
+    }
+
+    if (onchain.verified) {
+      summary.verifiedCount += 1;
+    } else {
+      summary.failedCount += 1;
+    }
+  }
+
+  console.log(
+    `[ZK: SESSION] game ${gameId} on-chain verification summary`,
+    summary,
+  );
+  return summary;
 }

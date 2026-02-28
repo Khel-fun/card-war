@@ -42,7 +42,17 @@ setupSocketHandlers(io);
 
 const PORT = process.env.PORT || 4000;
 initDB()
-  .then(() => {
+  .then(async () => {
+    try {
+      const reconcileModule = await import('./proving_system/reconcileJobs.ts');
+      const reconcile = reconcileModule.default || reconcileModule;
+      if (typeof reconcile.startJobReconcileWorker === 'function') {
+        reconcile.startJobReconcileWorker();
+      }
+    } catch (err) {
+      console.error('Failed to start reconcile worker:', err?.message || err);
+    }
+
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
