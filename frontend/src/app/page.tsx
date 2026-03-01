@@ -17,8 +17,7 @@ export default function HomePage() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden"
-      style={{ background: BG }}
+      className="min-h-screen flex flex-col items-center justify-center px-4 relative overflow-hidden bg-[url(/home_bg.png)] bg-cover bg-center"
     >
       <div className="absolute inset-0 pointer-events-none" style={{ background: FIRE }} />
 
@@ -29,7 +28,7 @@ export default function HomePage() {
         transition={{ duration: 0.7 }}
       >
         {/* Title */}
-        <motion.h1
+        {/* <motion.h1
           className="font-black tracking-[0.12em] leading-none mb-1"
           style={{
             fontSize: 'clamp(4rem, 14vw, 8rem)',
@@ -42,17 +41,17 @@ export default function HomePage() {
           transition={{ duration: 0.6, type: 'spring' }}
         >
           WAR
-        </motion.h1>
-        <p className="text-sm font-bold tracking-[0.3em] uppercase mb-8" style={{ color: 'rgba(245,200,80,0.55)' }}>
+        </motion.h1> */}
+        {/* <p className="text-sm font-bold tracking-[0.3em] uppercase mb-8" style={{ color: 'rgba(245,200,80,0.55)' }}>
           Card Battle · 1v1 PvP
-        </p>
+        </p> */}
 
         {/* Divider */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
+        {/* <div className="flex items-center gap-3 mb-8 justify-center">
           <div className="h-px flex-1" style={{ background: 'linear-gradient(to right, transparent, #78501a)' }} />
           <span style={{ color: '#78501a', fontSize: 12 }}>⚔</span>
           <div className="h-px flex-1" style={{ background: 'linear-gradient(to left, transparent, #78501a)' }} />
-        </div>
+        </div> */}
 
         {/* Wallet connect */}
         <div className="flex flex-col items-center gap-5 mb-10">
