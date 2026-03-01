@@ -149,19 +149,13 @@ export default function GameBoard() {
       {/* ── TOP BAR ── */}
       <div className="relative z-20 flex items-start justify-between px-6 pt-5">
         <Link href="/lobby">
-          <motion.div
-            className="flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer text-sm font-bold uppercase tracking-widest"
-            style={{
-              background: 'linear-gradient(to bottom, #292018, #1a130a)',
-              border: '1px solid #78501a',
-              color: '#d4a74a',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
-            }}
+          <motion.button
+            className="relative"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            ◂ BACK
-          </motion.div>
+            <Image src="/back.png" alt="Back" width={150} height={50} className="object-contain" />
+          </motion.button>
         </Link>
 
         <div className="flex flex-col items-center gap-1">
@@ -404,24 +398,15 @@ export default function GameBoard() {
           <motion.button
             onClick={handleFlip}
             disabled={myReady}
-            className="px-14 py-4 font-black text-xl tracking-[0.18em] uppercase rounded-lg"
-            style={myReady ? {
-              background: 'linear-gradient(to bottom, #2a2010, #1a1308)',
-              border: '2px solid #4a3510',
-              color: '#5a4520',
-              cursor: 'not-allowed',
-            } : {
-              background: 'linear-gradient(to bottom, #b8860b, #7a4f00)',
-              border: '2px solid #f5c842',
-              color: '#fff8e0',
-              textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-              boxShadow: '0 0 28px rgba(245,158,11,0.6), 0 4px 14px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,230,100,0.25)',
-              cursor: 'pointer',
+            className="relative flex items-center justify-center"
+            style={{
+              cursor: myReady ? 'not-allowed' : 'pointer',
+              opacity: myReady ? 0.4 : 1,
             }}
-            whileHover={myReady ? {} : { scale: 1.06, boxShadow: '0 0 45px rgba(245,158,11,0.85)' }}
+            whileHover={myReady ? {} : { scale: 1.06 }}
             whileTap={myReady ? {} : { scale: 0.97 }}
           >
-            {myReady ? 'WAITING...' : 'FLIP YOUR CARD!'}
+            <Image src="/flip.png" alt="Flip Card" width={280} height={70} className="object-contain" />
           </motion.button>
         )}
 
@@ -429,25 +414,16 @@ export default function GameBoard() {
           <motion.button
             onClick={handleWar}
             disabled={myReady}
-            className="px-14 py-4 font-black text-xl tracking-[0.18em] uppercase rounded-lg"
-            style={myReady ? {
-              background: 'linear-gradient(to bottom, #2a1010, #1a0808)',
-              border: '2px solid #4a1010',
-              color: '#5a2020',
-              cursor: 'not-allowed',
-            } : {
-              background: 'linear-gradient(to bottom, #991b1b, #7f1d1d)',
-              border: '2px solid #ef4444',
-              color: '#ffe0e0',
-              textShadow: '0 1px 3px rgba(0,0,0,0.8)',
-              boxShadow: '0 0 28px rgba(239,68,68,0.55), 0 4px 14px rgba(0,0,0,0.8)',
-              cursor: 'pointer',
+            className="relative flex items-center justify-center"
+            style={{
+              cursor: myReady ? 'not-allowed' : 'pointer',
+              opacity: myReady ? 0.4 : 1,
             }}
             animate={myReady ? {} : { scale: [1, 1.04, 1] }}
             transition={{ repeat: Infinity, duration: 0.9 }}
             whileTap={myReady ? {} : { scale: 0.97 }}
           >
-            {myReady ? 'WAITING...' : '⚔️ PLACE WAR CARD!'}
+            <Image src="/war.png" alt="Place War Card" width={280} height={70} className="object-contain" />
           </motion.button>
         )}
       </div>

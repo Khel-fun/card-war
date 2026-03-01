@@ -8,6 +8,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useSocket } from '@/hooks/useSocket';
 import GameBoard from '@/components/GameBoard';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function GamePage() {
   const { address } = useAccount();
@@ -30,14 +31,9 @@ export default function GamePage() {
   if (status === 'game_over') {
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden"
-        style={{
-          background: 'radial-gradient(ellipse at center bottom, #7c2d12 0%, #431407 30%, #1c0a02 60%, #0a0500 100%)',
-        }}
+        className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center"
       >
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: 'radial-gradient(ellipse at 20% 50%, rgba(251,146,60,0.15) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(239,68,68,0.1) 0%, transparent 50%)',
-        }} />
+        <div className="absolute inset-0 pointer-events-none"/>
         <motion.div
           className="text-center relative z-10"
           initial={{ opacity: 0, scale: 0.8 }}
@@ -77,32 +73,22 @@ export default function GamePage() {
             <Link href="/lobby">
               <motion.button
                 onClick={reset}
-                className="px-10 py-3 font-bold text-lg rounded-lg transition-all"
-                style={{
-                  background: 'linear-gradient(to bottom, #d97706, #92400e)',
-                  border: '2px solid #f59e0b',
-                  color: '#fef3c7',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                  boxShadow: '0 0 20px rgba(245,158,11,0.4)',
-                }}
+                className="relative"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                PLAY AGAIN
+                <Image src="/play.png" alt="Play Again" width={200} height={60} className="object-contain" />
               </motion.button>
             </Link>
             <Link href="/">
-              <button
+              <motion.button
                 onClick={reset}
-                className="px-10 py-3 font-bold text-lg rounded-lg transition-all"
-                style={{
-                  background: 'rgba(0,0,0,0.5)',
-                  border: '2px solid rgba(245,158,11,0.3)',
-                  color: '#d6d3d1',
-                }}
+                className="relative"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                HOME
-              </button>
+                <Image src="/home.png" alt="Home" width={200} height={60} className="object-contain" />
+              </motion.button>
             </Link>
           </div>
         </motion.div>
@@ -111,9 +97,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{
-      background: 'radial-gradient(ellipse at center bottom, #7c2d12 0%, #431407 30%, #1c0a02 60%, #0a0500 100%)',
-    }}>
+    <div className="min-h-screen relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center">
       <div className="absolute inset-0 pointer-events-none" style={{
         background: `
           radial-gradient(ellipse at 15% 60%, rgba(251,146,60,0.25) 0%, transparent 40%),

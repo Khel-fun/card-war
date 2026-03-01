@@ -6,6 +6,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useGameStore } from '@/store/gameStore';
 import { useSocket, emitJoinQueue } from '@/hooks/useSocket';
 
@@ -50,7 +51,7 @@ export default function LobbyPage() {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-6 relative" style={{ background: BG }}>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 relative bg-[url('/bg.png')] bg-cover bg-center">
         <div className="absolute inset-0 pointer-events-none" style={{ background: FIRE }} />
         <p className="relative z-10 font-bold tracking-widest uppercase text-sm" style={{ color: 'rgba(245,200,80,0.6)' }}>
           Connect your wallet to enter the battle
@@ -63,18 +64,18 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden" style={{ background: BG }}>
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center">
       <div className="absolute inset-0 pointer-events-none" style={{ background: FIRE }} />
 
       {/* Back link */}
       <Link href="/" className="absolute top-5 left-6 z-20">
-        <motion.div
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-widest cursor-pointer"
-          style={{ background: 'linear-gradient(to bottom, #292018, #1a130a)', border: '1px solid #78501a', color: '#d4a74a', boxShadow: '0 2px 8px rgba(0,0,0,0.6)' }}
-          whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+        <motion.button
+          className="relative"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
-          ◂ BACK
-        </motion.div>
+          <Image src="/back.png" alt="Back" width={150} height={50} className="object-contain" />
+        </motion.button>
       </Link>
 
       {/* Header */}
@@ -85,7 +86,7 @@ export default function LobbyPage() {
         >
           LOBBY
         </h1>
-        <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.35)' }}>
+        <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.95)' }}>
           {address?.slice(0, 6)}...{address?.slice(-4)}
         </p>
       </motion.div>
@@ -103,12 +104,11 @@ export default function LobbyPage() {
         {status === 'idle' && (
           <motion.button
             onClick={handleJoinQueue}
-            className="w-full py-4 font-black text-lg tracking-[0.15em] uppercase rounded-lg"
-            style={goldBtn}
-            whileHover={{ scale: 1.03, boxShadow: '0 0 45px rgba(245,158,11,0.8)' }}
+            className="w-full flex items-center justify-center"
+            whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
           >
-            FIND MATCH
+            <Image src="/find.png" alt="Find Match" width={300} height={80} className="object-contain" />
           </motion.button>
         )}
 
@@ -140,7 +140,7 @@ export default function LobbyPage() {
         )}
       </motion.div>
 
-      <p className="relative z-10 text-xs text-center max-w-sm" style={{ color: 'rgba(255,255,255,0.2)' }}>
+      <p className="relative z-10 text-xs text-center max-w-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
         Games are provably fair — deck hash published before cards are dealt.
       </p>
     </div>
