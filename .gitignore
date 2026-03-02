@@ -8,3 +8,11 @@ node_modules
 /backend/src/proving_system/circuits/target/shuffle_*
 /backend/src/proving_system/circuits/target/deal_*
 /backend/bash00.log
+
+# Hardhat generated outputs
+/contract/artifacts/
+/contract/cache/
+
+/Reference-But-not-part-of-our-project
+transcript.txt
+db_structure.txt

@@ -11,7 +11,66 @@ import fs from "fs";
 import path from "path";
 import axios from "axios";
 import dotenv from "dotenv";
+import crypto from "crypto";
+import { trackingService } from "../tracking/service";
+import { verifyAndRecordAggregationOnChain } from "./onchain";
 dotenv.config();
+
+type TrackingContext = {
+  gameId?: string;
+  playerAddress?: string;
+  proofUuid?: string | null;
+};
+
+type EnsureCircuitResult = {
+  circuitUuid: string | null;
+  vkHash: string | null;
+  verificationKeyHex: string;
+};
+
+type SessionOnChainVerificationSummary = {
+  gameId: string;
+  totalJobs: number;
+  verifiedCount: number;
+  failedCount: number;
+  skippedAlreadyVerified: number;
+  skippedNotAggregated: number;
+  skippedMissingData: number;
+};
+
+const _circuitSetupCache = new Map<CircuitKind, EnsureCircuitResult>();
+const _circuitSetupInFlight = new Map<CircuitKind, Promise<EnsureCircuitResult>>();
+
+function hashString(value: string): string {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizePublicInputs(publicInputs: string[]) {
+  return publicInputs.map((pi) => (pi.startsWith("0x") ? pi : `0x${pi}`));
+}
+
+async function safeTrack<T>(label: string, fn: () => Promise<T>): Promise<T | null> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    console.error(`[TRACKING] ${label} failed:`, error?.message || error);
+    return null;
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // setting up Noir and UltraHonk Backend for specific circuit
 export function setupProver(circuit_name: CircuitKind) {
@@ -26,7 +85,8 @@ export function setupProver(circuit_name: CircuitKind) {
     throw new Error(`[ERR: Circuits] Circuit file not found`);
   }
 
-  const circuit = JSON.parse(fs.readFileSync(PATH_TO_CIRCUIT, "utf8"));
+  const rawCircuit = fs.readFileSync(PATH_TO_CIRCUIT, "utf8");
+  const circuit = JSON.parse(rawCircuit);
   if (!circuit.bytecode) {
     throw new Error(`[ERR: Circuits] Circuit bytecode not found`);
   }
@@ -34,59 +94,134 @@ export function setupProver(circuit_name: CircuitKind) {
   console.log(`## Setting up Prover for ${circuit_name}`);
   const noir = new Noir(circuit as CompiledCircuit);
   const backend = new UltraHonkBackend(circuit.bytecode);
-  return { noir, backend };
+  return { noir, backend, circuit, artifactSha256: hashString(rawCircuit) };
 }
 
 // generating and registering the circuit specific verification key with the zkVerify Kurier relayer
-export async function registerVk(circuit_name: CircuitKind) {
+export async function registerVk(
+  circuit_name: CircuitKind,
+  context: TrackingContext = {},
+): Promise<EnsureCircuitResult> {
   const { KURIER_URL, KURIER_API } = process.env;
   if (!KURIER_URL || !KURIER_API) {
     throw new Error("[ERR: Env] Missing environment variables");
   }
 
-  const { backend } = setupProver(circuit_name);
+  const { backend, circuit, artifactSha256 } = setupProver(circuit_name);
   console.log(`## Generating Verification Key for ${circuit_name}`);
   const verification_key = await backend.getVerificationKey({ keccak: true });
 
-  const vkey = uint8ArrayToHex(verification_key);
-  const VK_HEX_PATH = path.join(
-    __dirname,
-    "circuits",
-    "target",
-    `${circuit_name}_vk.hex`,
-  );
-  fs.writeFileSync(VK_HEX_PATH, vkey);
-  if (!fs.existsSync(VK_HEX_PATH)) {
-    throw new Error(
-      "[ERR: Verification Key] Failed to write verification key hex file",
-    );
-  }
-
+  const verificationKeyHex = uint8ArrayToHex(verification_key);
   const vk_payload = {
     proofType: "ultrahonk",
     proofOptions: {
       variant: "Plain",
     },
-    vk: `${vkey}`,
+    vk: `${verificationKeyHex}`,
   };
 
   console.log(`## Registering Verification Key at Kurier for ${circuit_name}`);
-  const reg_vk_response = await axios.post(
-    `${KURIER_URL}/register-vk/${KURIER_API}`,
-    vk_payload,
-  );
-
-  const VK_HASH_PATH = path.join(
-    __dirname,
-    "circuits",
-    "target",
-    `${circuit_name}_vkHash.json`,
-  );
-  fs.writeFileSync(VK_HASH_PATH, JSON.stringify(reg_vk_response.data));
-  if (!fs.existsSync(VK_HASH_PATH)) {
-    throw new Error(
-      "[ERR: Verification Key] Failed to write verification key hash file",
+  let vkHash: string | null = null;
+  try {
+    const reg_vk_response = await axios.post(
+      `${KURIER_URL}/register-vk/${KURIER_API}`,
+      vk_payload,
     );
+    vkHash = reg_vk_response.data?.vkHash || reg_vk_response.data?.meta?.vkHash;
+  } catch (error: any) {
+    const isAlreadyRegistered =
+      error?.response?.status === 400 &&
+      error?.response?.data?.code === "REGISTER_VK_FAILED" &&
+      String(error?.response?.data?.message || "").includes("uniq_vk_hash");
+
+    if (!isAlreadyRegistered) {
+      throw error;
+    }
+
+    // Another concurrent proof flow already registered this VK.
+    // Wait briefly and fetch the active circuit row that should now include vk_hash.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await sleep(200 * (attempt + 1));
+      const active = await safeTrack("fetch active circuit after vk conflict", async () =>
+        trackingService.getActiveCircuit(circuit_name),
+      );
+      if (active?.vk_hash) {
+        vkHash = active.vk_hash;
+        break;
+      }
+    }
+  }
+
+  const setupRow = await safeTrack("upsert circuit setup", async () => {
+    if (context.gameId) {
+      await trackingService.ensureGameSession(context.gameId);
+    }
+    return trackingService.upsertCircuitSetup({
+      kind: circuit_name,
+      compiledCircuit: circuit,
+      verificationKeyHex,
+      vkHash: vkHash || "0x" + hashString(verificationKeyHex).slice(0, 64),
+      artifactSha256,
+      sessionUuid: context.gameId,
+    });
+  });
+
+  return {
+    circuitUuid: setupRow?.circuit_uuid ?? null,
+    vkHash: vkHash || setupRow?.vk_hash || null,
+    verificationKeyHex,
+  };
+}
+
+async function ensureCircuitSetup(
+  circuit_name: CircuitKind,
+  context: TrackingContext,
+): Promise<EnsureCircuitResult> {
+  const cached = _circuitSetupCache.get(circuit_name);
+  if (cached) {
+    return cached;
+  }
+
+  const inFlight = _circuitSetupInFlight.get(circuit_name);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const setupPromise = (async () => {
+    const activeCircuit = await safeTrack("fetch active circuit", async () =>
+      trackingService.getActiveCircuit(circuit_name),
+    );
+
+    if (activeCircuit?.vk_hash) {
+      if (context.gameId) {
+        await safeTrack("link active circuit to session", async () =>
+          trackingService.upsertCircuitSetup({
+            kind: circuit_name,
+            compiledCircuit: activeCircuit.compiled_circuit,
+            verificationKeyHex: activeCircuit.vkey_hex,
+            vkHash: activeCircuit.vk_hash,
+            artifactSha256: activeCircuit.artifact_sha256,
+            sessionUuid: context.gameId,
+          }),
+        );
+      }
+      return {
+        circuitUuid: activeCircuit.circuit_uuid ?? null,
+        vkHash: activeCircuit.vk_hash,
+        verificationKeyHex: activeCircuit.vkey_hex,
+      };
+    }
+
+    return registerVk(circuit_name, context);
+  })();
+
+  _circuitSetupInFlight.set(circuit_name, setupPromise);
+  try {
+    const result = await setupPromise;
+    _circuitSetupCache.set(circuit_name, result);
+    return result;
+  } finally {
+    _circuitSetupInFlight.delete(circuit_name);
   }
 }
 
@@ -94,7 +229,8 @@ export async function registerVk(circuit_name: CircuitKind) {
 export async function generateProof(
   circuit_name: CircuitKind,
   inputs: Record<string, any>,
-): Promise<{ proofHex: string; publicInputs: string[] }> {
+  context: TrackingContext = {},
+): Promise<{ proofHex: string; publicInputs: string[]; proofUuid: string | null }> {
   const { noir, backend } = setupProver(circuit_name);
 
   console.log(
@@ -111,51 +247,39 @@ export async function generateProof(
     keccak: true,
   });
 
-  // TODO: Remove files on storing to db
-  const PATH_TO_PROOF_HEX = path.join(
-    __dirname,
-    "circuits",
-    "target",
-    `${circuit_name}_proof.hex`,
-  );
-
-  const PATH_TO_PUBLIC_INPUTS = path.join(
-    __dirname,
-    "circuits",
-    "target",
-    `${circuit_name}_publicInputs.json`,
-  );
-
   const proofHex = uint8ArrayToHex(proof_data.proof);
-
-  fs.writeFileSync(PATH_TO_PROOF_HEX, proofHex); // TODO: store `proofHex` to db as TEXT
-  if (!fs.existsSync(PATH_TO_PROOF_HEX)) {
-    throw new Error("[ERR: Proof] Failed to write proof to file");
-  }
-
-  fs.writeFileSync(
-    // TODO: store `proofData.publicInputs` to db as TEXT[]
-    PATH_TO_PUBLIC_INPUTS,
-    JSON.stringify(proof_data.publicInputs),
-    "utf-8",
-  );
-  if (!fs.existsSync(PATH_TO_PUBLIC_INPUTS)) {
-    throw new Error("[ERR: Proof] Failed to write public inputs to file");
-  }
+  const publicInputs = normalizePublicInputs(proof_data.publicInputs);
 
   console.log(`## Verifying Proof w/ BB.js for ${circuit_name}`);
-  const is_valid = await backend.verifyProof(proof_data, {
+  const isValid = await backend.verifyProof(proof_data, {
     keccak: true,
   });
-  if (!is_valid) {
+  if (!isValid) {
     throw new Error("[ERR: Proof] Proof verification failed");
+  }
+
+  let proofUuid: string | null = null;
+  if (context.gameId) {
+    const circuitSetup = await ensureCircuitSetup(circuit_name, context);
+    if (circuitSetup.circuitUuid) {
+      const createdProofUuid = await safeTrack("create proof record", async () =>
+        trackingService.createProofRecord({
+          sessionUuid: context.gameId!,
+          circuitUuid: circuitSetup.circuitUuid!,
+          playerAddress: context.playerAddress?.toLowerCase() || null,
+          proofHex,
+          publicInputs,
+          bbVerificationStatus: true,
+        }),
+      );
+      proofUuid = createdProofUuid ?? null;
+    }
   }
 
   return {
     proofHex,
-    publicInputs: proof_data.publicInputs.map((pi) =>
-      pi.startsWith("0x") ? pi : `0x${pi}`,
-    ),
+    publicInputs,
+    proofUuid,
   };
 }
 
@@ -163,123 +287,347 @@ export async function verifyProof(
   circuit_name: CircuitKind,
   proofHex: string,
   formattedPublicInputs: string[],
+  context: TrackingContext = {},
 ) {
   const { KURIER_URL, KURIER_API } = process.env;
   if (!KURIER_URL || !KURIER_API) {
     throw new Error("[ERR: Env] Missing environment variables");
   }
 
-  const VK_HASH_PATH = path.join(
-    __dirname,
-    "circuits",
-    "target",
-    `${circuit_name}_vkHash.json`,
-  );
-  if (!fs.existsSync(VK_HASH_PATH)) {
+  const circuitSetup = await ensureCircuitSetup(circuit_name, context);
+  const vkHash = circuitSetup.vkHash;
+  if (vkHash) {
+    console.log(`## vkHash found for ${circuit_name}: ${vkHash}`);
+  } else {
     console.log(
-      `[WARN: Verification Key] VK hash not found for ${circuit_name}, registering new VK`,
+      `[WARN: ZKV] vkHash unavailable for ${circuit_name}; submitting with full verification key`,
     );
-    await registerVk(circuit_name);
   }
-  const vkey = JSON.parse(fs.readFileSync(VK_HASH_PATH, "utf8"));
-  const vkHash = vkey.vkHash || vkey.meta.vkHash;
-  if (!vkHash) {
-    throw new Error("[ERR: ZKV] Verification key not found");
-  }
-  console.log(`## vkHash found for ${circuit_name}: ${vkHash}`);
-  const proof_payload = {
+
+  const proofPayload = {
     proofType: "ultrahonk",
-    vkRegistered: true,
+    vkRegistered: Boolean(vkHash),
     chainId: 84532,
     proofOptions: {
       variant: "Plain",
     },
     proofData: {
       proof: `${proofHex}`,
-      publicSignals: formattedPublicInputs,
-      vk: vkHash as string,
+      publicSignals: normalizePublicInputs(formattedPublicInputs),
+      vk: vkHash || circuitSetup.verificationKeyHex,
     },
     submissionMode: "attestation",
   };
 
-  // TODO: for beta-testing, keep payloads and responses in db
-  const payloads_path = path.join(__dirname, "payloads_and_respones");
-  if (!fs.existsSync(payloads_path)) {
-    fs.mkdirSync(payloads_path, { recursive: true });
-  }
-
-  fs.writeFileSync(
-    path.join(payloads_path, `${circuit_name}_proof_payload.json`),
-    JSON.stringify(proof_payload),
-  );
-
   console.log("## Submitting Proof to Kurier");
-  const submit_response = await axios.post(
+  const submitResponse = await axios.post(
     `${KURIER_URL}/submit-proof/${KURIER_API}`,
-    proof_payload,
+    proofPayload,
   );
 
   console.log(
     `Proof response status code for ${circuit_name}:`,
-    submit_response.status,
+    submitResponse.status,
   );
-
-  const path_to_submit_proof_response = path.join(
-    __dirname,
-    "payloads_and_respones",
-    `${circuit_name}_proof_response.json`,
-  );
-
-  fs.writeFileSync(
-    path_to_submit_proof_response,
-    JSON.stringify(submit_response.data),
-  );
-
-  console.log(
-    `==> Submit Response:\n`,
-    JSON.stringify(submit_response.data, null, 2),
-  );
-  if (submit_response.data.optimisticVerify !== "success") {
+  if (submitResponse.data.optimisticVerify !== "success") {
     throw new Error("[ERR: Proof Verification] Optimistic verification failed");
   }
 
-  const jobId = submit_response.data.jobId; // TODO: store jobId to db as TEXT
+  const jobId = submitResponse.data.jobId;
   console.log(
     `## Proof submitted successfully for ${circuit_name}. Job ID: ${jobId}`,
   );
 
-  while (true) {
-    const job_status_response = await axios.get(
-      `${KURIER_URL}/job-status/${KURIER_API}/${jobId}`,
+  const proofUuid = context.proofUuid ?? null;
+  let submittedJobPersisted = false;
+  try {
+    await trackingService.upsertVerificationJob({
+      jobId,
+      status: "Submitted",
+      aggregationResponse: submitResponse.data,
+    });
+    submittedJobPersisted = true;
+  } catch (error: any) {
+    console.error(
+      "[TRACKING] upsert submitted job failed:",
+      error?.message || error,
     );
-    if (job_status_response.data.status === "Aggregated") {
-      console.log("##Job aggregated successfully");
-      console.log(job_status_response.data);
+  }
 
-      // TODO: Remove files on storing to db
-      const aggregations_dir = path.join(__dirname, "aggregations");
-      if (!fs.existsSync(aggregations_dir)) {
-        fs.mkdirSync(aggregations_dir, { recursive: true });
+  if (proofUuid && context.gameId) {
+    if (!submittedJobPersisted) {
+      console.warn(
+        `[TRACKING] skipping proof submission attach for ${proofUuid} because verification job ${jobId} was not persisted`,
+      );
+    } else {
+      await safeTrack("persist proof submission", async () =>
+        trackingService.attachProofSubmission(
+          context.gameId!,
+          proofUuid,
+          jobId,
+          proofPayload,
+          submitResponse.data,
+        ),
+      );
+    }
+  }
+
+  let transientPollFailures = 0;
+  while (true) {
+    let jobStatusResponse;
+    try {
+      jobStatusResponse = await axios.get(
+        `${KURIER_URL}/job-status/${KURIER_API}/${jobId}`,
+      );
+      transientPollFailures = 0;
+    } catch (error: any) {
+      transientPollFailures += 1;
+      const code = error?.code || "UNKNOWN";
+      console.warn(
+        `[WARN: ZKV] polling job-status failed for ${jobId} (${code}), attempt ${transientPollFailures}`,
+      );
+      if (transientPollFailures >= 10) {
+        throw new Error(
+          `[ERR: ZKV] job status polling failed repeatedly for ${jobId}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      continue;
+    }
+
+    const jobStatus = jobStatusResponse.data?.status;
+    const aggregationDetails = jobStatusResponse.data?.aggregationDetails || null;
+
+    if (typeof jobStatus === "string") {
+      await safeTrack("upsert job status", async () =>
+        trackingService.upsertVerificationJob({
+          jobId,
+          status: jobStatus as any,
+          aggregationId: toNumberOrNull(jobStatusResponse.data?.aggregationId),
+          aggregationResponse: jobStatusResponse.data,
+          leaf: aggregationDetails?.leaf ?? null,
+          leafIndex: toNumberOrNull(aggregationDetails?.leafIndex),
+          numberOfLeaves: toNumberOrNull(aggregationDetails?.numberOfLeaves),
+          merkleProof: Array.isArray(aggregationDetails?.merkleProof)
+            ? aggregationDetails.merkleProof
+            : null,
+          statement: jobStatusResponse.data?.statement ?? null,
+          txHash: jobStatusResponse.data?.txHash ?? null,
+        }),
+      );
+    }
+
+    if (jobStatus === "Aggregated") {
+      console.log("##Job aggregated successfully");
+      const aggregationId = toNumberOrNull(jobStatusResponse.data?.aggregationId);
+      const leaf = aggregationDetails?.leaf ?? null;
+      const merkleProof = Array.isArray(aggregationDetails?.merkleProof)
+        ? aggregationDetails.merkleProof
+        : [];
+      const leafCount = toNumberOrNull(aggregationDetails?.numberOfLeaves);
+      const leafIndex = toNumberOrNull(aggregationDetails?.leafIndex);
+      const domainIdFromEnv = toNumberOrNull(process.env.ZKVERIFY_DOMAIN_ID);
+
+      let onchain = {
+        attempted: false,
+        verified: false,
+        domainId: null as number | null,
+        txHash: null as string | null,
+        contractAddress: process.env.CARDWAR_REGISTRY_ADDRESS || null,
+      };
+
+      if (
+        context.gameId &&
+        aggregationId !== null &&
+        leaf &&
+        merkleProof.length > 0 &&
+        leafCount !== null &&
+        leafIndex !== null
+      ) {
+        onchain = await verifyAndRecordAggregationOnChain({
+          gameId: context.gameId,
+          aggregationId,
+          leaf,
+          merklePath: merkleProof,
+          leafCount,
+          leafIndex,
+        });
+      }
+      const resolvedDomainId = onchain.domainId ?? domainIdFromEnv;
+
+      if (proofUuid) {
+        await safeTrack("update proof onchain status", async () =>
+          trackingService.setProofOnchainVerificationStatus(
+            proofUuid,
+            onchain.attempted ? onchain.verified : null,
+          ),
+        );
       }
 
-      const aggregation_path = path.join(
-        aggregations_dir,
-        `${job_status_response.data.aggregationId}.json`,
-      );
-      fs.writeFileSync(
-        // TODO: store aggregation status response to db
-        aggregation_path,
-        JSON.stringify(job_status_response.data, null, 2),
-      );
-      console.log(`## Aggregation result saved to ${aggregation_path}`);
-      break; // Exit loop after successful aggregation
-    } else if (job_status_response.data.status === "Failed") {
-      console.error("##Job failed:", job_status_response.data);
+      if (
+        proofUuid &&
+        resolvedDomainId !== null &&
+        aggregationId !== null &&
+        leaf &&
+        merkleProof.length > 0 &&
+        leafCount !== null &&
+        leafIndex !== null
+      ) {
+        await safeTrack("insert aggregation verification", async () =>
+          trackingService.recordAggregationVerification({
+            proofUuid,
+            zkverifyContractAddress:
+              onchain.contractAddress ||
+              process.env.CARDWAR_REGISTRY_ADDRESS ||
+              "unconfigured",
+            domainId: resolvedDomainId,
+            aggregationId,
+            leaf,
+            merklePath: merkleProof,
+            leafCount,
+            leafIndex,
+            verified: onchain.verified,
+            txHash: onchain.txHash,
+          }),
+        );
+      }
+
+      return {
+        jobId,
+        status: jobStatus,
+        aggregationId,
+        domainId: resolvedDomainId,
+        onchain,
+      };
+    } else if (jobStatus === "Failed") {
+      console.error("##Job failed:", jobStatusResponse.data);
+      if (proofUuid) {
+        await safeTrack("mark onchain verification failed", async () =>
+          trackingService.setProofOnchainVerificationStatus(proofUuid, false),
+        );
+      }
       throw new Error("[ERR: ZKV] Proof aggregation failed");
     } else {
-      console.log("##Job status: ", job_status_response.data.status);
+      console.log("##Job status: ", jobStatus);
       console.log(`==> Waiting for job to be aggregated...`);
       await new Promise((resolve) => setTimeout(resolve, 20000)); // Wait for 20 seconds before checking again
     }
   }
+}
+
+export async function verifySessionAggregationsOnChain(
+  gameId: string,
+): Promise<SessionOnChainVerificationSummary> {
+  const rows =
+    (await safeTrack("fetch session proof jobs", async () =>
+      trackingService.getSessionProofJobs(gameId),
+    )) ?? [];
+
+  const summary: SessionOnChainVerificationSummary = {
+    gameId,
+    totalJobs: rows.length,
+    verifiedCount: 0,
+    failedCount: 0,
+    skippedAlreadyVerified: 0,
+    skippedNotAggregated: 0,
+    skippedMissingData: 0,
+  };
+
+  if (rows.length === 0) {
+    console.warn(`[ZK: SESSION] no tracked jobs found for game ${gameId}`);
+    return summary;
+  }
+
+  const domainIdFromEnv = toNumberOrNull(process.env.ZKVERIFY_DOMAIN_ID);
+  for (const row of rows) {
+    const jobId = row.job_id;
+    if (row.onchain_verification_status === true) {
+      summary.skippedAlreadyVerified += 1;
+      continue;
+    }
+
+    if (row.status !== "Aggregated") {
+      summary.skippedNotAggregated += 1;
+      console.log(
+        `[ZK: SESSION] skipping job ${jobId} for game ${gameId}: status=${row.status || "unknown"}`,
+      );
+      continue;
+    }
+
+    const aggregationId = toNumberOrNull(row.aggregation_id);
+    const leaf = row.leaf ?? null;
+    const merklePath = Array.isArray(row.merkle_proof) ? row.merkle_proof : [];
+    const leafCount = toNumberOrNull(row.number_of_leaves);
+    const leafIndex = toNumberOrNull(row.leaf_index);
+    const proofUuid = row.proof_uuid ?? null;
+
+    if (
+      aggregationId === null ||
+      !leaf ||
+      merklePath.length === 0 ||
+      leafCount === null ||
+      leafIndex === null
+    ) {
+      summary.skippedMissingData += 1;
+      console.warn(
+        `[ZK: SESSION] skipping job ${jobId} for game ${gameId}: missing aggregation details`,
+      );
+      continue;
+    }
+
+    const onchain = await verifyAndRecordAggregationOnChain({
+      gameId,
+      aggregationId,
+      leaf,
+      merklePath,
+      leafCount,
+      leafIndex,
+    });
+
+    const resolvedDomainId = onchain.domainId ?? domainIdFromEnv;
+    if (proofUuid) {
+      await safeTrack("update proof onchain status (session)", async () =>
+        trackingService.setProofOnchainVerificationStatus(
+          proofUuid,
+          onchain.attempted ? onchain.verified : null,
+        ),
+      );
+
+      if (resolvedDomainId !== null) {
+        await safeTrack("insert aggregation verification (session)", async () =>
+          trackingService.recordAggregationVerification({
+            proofUuid,
+            zkverifyContractAddress:
+              onchain.contractAddress ||
+              process.env.CARDWAR_REGISTRY_ADDRESS ||
+              "unconfigured",
+            domainId: resolvedDomainId,
+            aggregationId,
+            leaf,
+            merklePath,
+            leafCount,
+            leafIndex,
+            verified: onchain.verified,
+            txHash: onchain.txHash,
+          }),
+        );
+      }
+    } else {
+      console.warn(
+        `[ZK: SESSION] missing proof_uuid for game ${gameId}, job ${jobId}; on-chain result not persisted to proofs`,
+      );
+    }
+
+    if (onchain.verified) {
+      summary.verifiedCount += 1;
+    } else {
+      summary.failedCount += 1;
+    }
+  }
+
+  console.log(
+    `[ZK: SESSION] game ${gameId} on-chain verification summary`,
+    summary,
+  );
+  return summary;
 }

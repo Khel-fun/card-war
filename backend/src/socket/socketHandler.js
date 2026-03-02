@@ -3,6 +3,85 @@ const { Matchmaker } = require('../game/matchmaker');
 const { pool } = require('../db/postgres');
 
 const matchmaker = new Matchmaker();
+let _verifySessionAggregationsOnChain = null;
+const _sessionVerifyRetryTimers = new Map();
+const SESSION_VERIFY_RETRY_INTERVAL_MS = Number(process.env.ZK_SESSION_VERIFY_RETRY_INTERVAL_MS || 30000);
+const SESSION_VERIFY_MAX_ATTEMPTS = Number(process.env.ZK_SESSION_VERIFY_MAX_ATTEMPTS || 20);
+
+async function getSessionAggregationVerifier() {
+  if (!_verifySessionAggregationsOnChain) {
+    const proveModule = await import('../proving_system/prove.ts');
+    const prove = proveModule.default || proveModule;
+    _verifySessionAggregationsOnChain = prove.verifySessionAggregationsOnChain;
+  }
+  return _verifySessionAggregationsOnChain;
+}
+
+function stopSessionVerificationRetry(gameId) {
+  const timer = _sessionVerifyRetryTimers.get(gameId);
+  if (timer) {
+    clearInterval(timer);
+    _sessionVerifyRetryTimers.delete(gameId);
+  }
+}
+
+async function runSessionVerificationAttempt(gameId) {
+  const verifySessionAggregationsOnChain = await getSessionAggregationVerifier();
+  const summary = await verifySessionAggregationsOnChain(gameId);
+  const unresolved =
+    summary.skippedNotAggregated + summary.skippedMissingData;
+  return { summary, unresolved };
+}
+
+function startSessionVerificationRetry(gameId) {
+  if (_sessionVerifyRetryTimers.has(gameId)) return;
+
+  let attempts = 0;
+  const tick = async () => {
+    attempts += 1;
+    try {
+      const { summary, unresolved } = await runSessionVerificationAttempt(gameId);
+      if (unresolved === 0) {
+        stopSessionVerificationRetry(gameId);
+        console.log(
+          `[ZK: SESSION] retry worker completed for game ${gameId} after ${attempts} attempt(s)`,
+        );
+        return;
+      }
+      if (attempts >= SESSION_VERIFY_MAX_ATTEMPTS) {
+        stopSessionVerificationRetry(gameId);
+        console.warn(
+          `[ZK: SESSION] retry worker reached max attempts for game ${gameId}; unresolved jobs: ${unresolved}`,
+          summary,
+        );
+      }
+    } catch (err) {
+      if (attempts >= SESSION_VERIFY_MAX_ATTEMPTS) {
+        stopSessionVerificationRetry(gameId);
+        console.error(
+          `[ZK: SESSION] retry worker failed and stopped for game ${gameId}:`,
+          err?.message || err,
+        );
+      } else {
+        console.warn(
+          `[ZK: SESSION] retry worker attempt ${attempts} failed for game ${gameId}:`,
+          err?.message || err,
+        );
+      }
+    }
+  };
+
+  tick().catch((err) => {
+    console.error(`[ZK: SESSION] initial retry tick failed for game ${gameId}:`, err?.message || err);
+  });
+
+  const timer = setInterval(() => {
+    tick().catch((err) => {
+      console.error(`[ZK: SESSION] retry tick failed for game ${gameId}:`, err?.message || err);
+    });
+  }, SESSION_VERIFY_RETRY_INTERVAL_MS);
+  _sessionVerifyRetryTimers.set(gameId, timer);
+}
 
 function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
@@ -57,6 +136,14 @@ function setupSocketHandlers(io) {
             `INSERT INTO games (id, player1_id, player2_id, status, original_deck)
              VALUES ($1, $2, $3, 'ACTIVE', $4)`,
             [gameId, p1DbId, p2DbId, JSON.stringify(game.engine.originalDeck)]
+          );
+
+          await pool.query(
+            `INSERT INTO game_sessions (session_uuid, players)
+             VALUES ($1::uuid, $2::char(42)[])
+             ON CONFLICT (session_uuid) DO UPDATE
+             SET players = EXCLUDED.players`,
+            [gameId, [player1Id, player2Id]]
           );
         } catch (err) {
           console.error('DB game insert error:', err.message);
@@ -190,6 +277,10 @@ function setupSocketHandlers(io) {
           `UPDATE games SET status = 'CLOSED', ended_at = NOW() WHERE id = $1`,
           [gameId]
         ).catch(console.error);
+        pool.query(
+          `UPDATE game_sessions SET ended_at = NOW() WHERE session_uuid = $1::uuid`,
+          [gameId]
+        ).catch(console.error);
       }
     });
   });
@@ -215,8 +306,20 @@ async function handleGameOver(io, game, winnerId, gameId) {
       `UPDATE games SET status = 'CLOSED', winner_id = $1, ended_at = NOW() WHERE id = $2`,
       [winnerRow.rows[0]?.id, gameId]
     );
+    await pool.query(
+      `UPDATE game_sessions
+       SET winner = $1::char(42)[], ended_at = NOW()
+       WHERE session_uuid = $2::uuid`,
+      [[winnerId], gameId]
+    );
   } catch (err) {
     console.error('Game over DB error:', err.message);
+  }
+
+  try {
+    startSessionVerificationRetry(gameId);
+  } catch (err) {
+    console.error(`[ZK: SESSION] could not initialize game-end verifier for game ${gameId}:`, err?.message || err);
   }
 
   matchmaker.endGame(gameId);

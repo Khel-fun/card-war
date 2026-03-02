@@ -8,13 +8,16 @@ async function getProvingModules() {
       import("../proving_system/type.ts"),
       import("../proving_system/circuits/index.ts"),
     ]);
+    const prove = proveModule.default || proveModule;
+    const type = typeModule.default || typeModule;
+    const circuits = circuitsModule.default || circuitsModule;
     _provingModules = {
-      generateProof: proveModule.generateProof,
-      verifyProof: proveModule.verifyProof,
-      CircuitKind: typeModule.CircuitKind,
-      shuffle_deck: circuitsModule.shuffle_deck,
-      deal_cards: circuitsModule.deal_cards,
-      card_to_string: circuitsModule.card_to_string,
+      generateProof: prove.generateProof,
+      verifyProof: prove.verifyProof,
+      CircuitKind: type.CircuitKind,
+      shuffle_deck: circuits.shuffle_deck,
+      deal_cards: circuits.deal_cards,
+      card_to_string: circuits.card_to_string,
     };
   }
   return _provingModules;
@@ -128,20 +131,32 @@ class GameEngine {
       generateProof(CircuitKind.SHUFFLE, {
         seed: seed_A,
         shuffled_deck: shuffled_deck_A,
+      }, {
+        gameId,
+        playerAddress: this.player1Id,
       }),
       generateProof(CircuitKind.SHUFFLE, {
         seed: seed_B,
         shuffled_deck: shuffled_deck_B,
+      }, {
+        gameId,
+        playerAddress: this.player2Id,
       }),
       generateProof(CircuitKind.DEAL, {
         seed: seed_A,
         commitment: dealt_commitment_A,
         cards: dealt_cards_A,
+      }, {
+        gameId,
+        playerAddress: this.player1Id,
       }),
       generateProof(CircuitKind.DEAL, {
         seed: seed_B,
         commitment: dealt_commitment_B,
         cards: dealt_cards_B,
+      }, {
+        gameId,
+        playerAddress: this.player2Id,
       }),
     ])
       .then(([shuffleA, shuffleB, dealA, dealB]) => {
@@ -153,14 +168,42 @@ class GameEngine {
             CircuitKind.SHUFFLE,
             shuffleA.proofHex,
             shuffleA.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player1Id,
+              proofUuid: shuffleA.proofUuid,
+            },
           ),
           verifyProof(
             CircuitKind.SHUFFLE,
             shuffleB.proofHex,
             shuffleB.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player2Id,
+              proofUuid: shuffleB.proofUuid,
+            },
           ),
-          verifyProof(CircuitKind.DEAL, dealA.proofHex, dealA.publicInputs),
-          verifyProof(CircuitKind.DEAL, dealB.proofHex, dealB.publicInputs),
+          verifyProof(
+            CircuitKind.DEAL,
+            dealA.proofHex,
+            dealA.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player1Id,
+              proofUuid: dealA.proofUuid,
+            },
+          ),
+          verifyProof(
+            CircuitKind.DEAL,
+            dealB.proofHex,
+            dealB.publicInputs,
+            {
+              gameId,
+              playerAddress: this.player2Id,
+              proofUuid: dealB.proofUuid,
+            },
+          ),
         ]);
       })
       .then(() => {
