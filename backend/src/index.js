@@ -4,7 +4,7 @@ const http = require('http');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const { setupSocketHandlers } = require('./socket/socketHandler');
-const { pool } = require('./db/postgres');
+const { pool, initDB } = require('./db/postgres');
 
 const app = express();
 const server = http.createServer(app);
@@ -41,6 +41,23 @@ app.get('/api/games/:gameId/reveal', async (req, res) => {
 setupSocketHandlers(io);
 
 const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+initDB()
+  .then(async () => {
+    try {
+      const reconcileModule = await import('./proving_system/reconcileJobs.ts');
+      const reconcile = reconcileModule.default || reconcileModule;
+      if (typeof reconcile.startJobReconcileWorker === 'function') {
+        reconcile.startJobReconcileWorker();
+      }
+    } catch (err) {
+      console.error('Failed to start reconcile worker:', err?.message || err);
+    }
+
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database schema:', err);
+    process.exit(1);
+  });
