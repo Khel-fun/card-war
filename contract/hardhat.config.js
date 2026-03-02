@@ -9,13 +9,12 @@ module.exports = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
+  defaultNetwork: 'baseSepolia',
   networks: {
-    localhost: {
-      url: 'http://127.0.0.1:8545',
-    },
-    sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || '',
+    baseSepolia: {
+      url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+      chainId: 84532,
     },
   },
   etherscan: {
