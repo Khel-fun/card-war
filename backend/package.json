@@ -4,7 +4,7 @@
   "description": "War Card Game Backend",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "tsx src/index.js",
     "dev": "nodemon --exec tsx src/index.js"
   },
   "dependencies": {
@@ -19,12 +19,12 @@
     "ioredis": "^5.3.2",
     "pg": "^8.11.3",
     "socket.io": "^4.7.4",
+    "tsx": "^4.21.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@noir-lang/noir_codegen": "1.0.0-beta.6",
     "@types/node": "^25.3.0",
-    "nodemon": "^3.1.0",
-    "tsx": "^4.21.0"
+    "nodemon": "^3.1.0"
   }
 }
