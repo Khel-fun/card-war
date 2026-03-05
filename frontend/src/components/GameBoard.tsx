@@ -11,7 +11,7 @@ const MAX_ROUNDS = 5;
 
 function getCardImg(rank: number | string, suit: string): string {
   const suitMap: Record<string, string> = { hearts: 'h', diamonds: 'd', clubs: 'c', spades: 's' };
-  const rankMap: Record<string, string> = { '1': 'a', '11': 'j', '12': 'q', '13': 'k', ace: 'a', jack: 'j', queen: 'q', king: 'k' };
+  const rankMap: Record<string, string> = { '1': 'a', '11': 'j', '12': 'q', '13': 'k', '14': 'a', ace: 'a', jack: 'j', queen: 'q', king: 'k' };
   const s = suitMap[suit.toLowerCase()] ?? suit[0].toLowerCase();
   const key = String(rank).toLowerCase();
   const r = rankMap[key] ?? key;
