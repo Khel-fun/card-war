@@ -18,7 +18,7 @@ function getCardImg(rank: number | string, suit: string): string {
   return `/cards/${r}${s}.png`;
 }
 
-function SideDeck({ count, label, isMe }: { count: number; label: string; isMe: boolean }) {
+function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: string; isMe: boolean; scoreChange?: number | null }) {
   const layers = Math.min(count, 5);
   return (
     <div className="flex flex-col items-center gap-2">
@@ -40,23 +40,47 @@ function SideDeck({ count, label, isMe }: { count: number; label: string; isMe: 
         ))}
       </div>
       <p className="font-bold text-xs uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</p>
-      <p className="font-black text-lg" style={{ color: '#d4a74a', textShadow: '0 0 8px rgba(245,158,11,0.5)' }}>{count}</p>
+      <div className="relative">
+        <p className="font-black text-lg" style={{ color: '#d4a74a', textShadow: '0 0 8px rgba(245,158,11,0.5)' }}>{count}</p>
+        <AnimatePresence>
+          {scoreChange !== null && scoreChange !== undefined && (
+            <motion.p
+              key={`score-${scoreChange}`}
+              className="absolute font-black text-sm"
+              style={{
+                color: scoreChange > 0 ? '#22c55e' : '#ef4444',
+                textShadow: '0 0 10px currentColor',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                top: 24,
+              }}
+              initial={{ opacity: 1, y: 0 }}
+              animate={{ opacity: 0, y: 15 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+            >
+              {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
+            </motion.p>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
 
 function BigCard({ card, label, won }: { card?: { rank: number | string; suit: string } | null; label: string; won?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-3">
-      <p className="text-sm font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.6)' }}>{label}</p>
-      <div className="relative" style={{ width: 130, height: 182 }}>
+    <div className="flex flex-col items-center gap-2 sm:gap-3">
+      <p className="text-xs sm:text-sm font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</p>
+      <div className="relative" style={{ width: 'clamp(90px, 25vw, 130px)', height: 'clamp(126px, 35vw, 182px)' }}>
         {[2, 1].map(i => (
           <div
             key={i}
-            className="absolute rounded-xl overflow-hidden"
+            className="absolute rounded-lg sm:rounded-xl overflow-hidden"
             style={{
-              width: 120, height: 168,
-              top: i * 4, left: i * 3,
+              width: 'clamp(84px, 23vw, 120px)',
+              height: 'clamp(117px, 32vw, 168px)',
+              top: i * 3, left: i * 2,
               zIndex: 3 - i,
               boxShadow: '0 4px 14px rgba(0,0,0,0.75)',
             }}
@@ -67,10 +91,12 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
         <AnimatePresence mode="wait">
           <motion.div
             key={card ? `${card.rank}-${card.suit}` : 'back'}
-            className="absolute rounded-xl overflow-hidden"
+            className="absolute rounded-lg sm:rounded-xl overflow-hidden"
             style={{
-              width: 120, height: 168, top: 0, left: 0, zIndex: 10,
-              boxShadow: won ? '0 0 30px rgba(34,197,94,0.6), 0 8px 24px rgba(0,0,0,0.9)' : '0 8px 24px rgba(0,0,0,0.85)',
+              width: 'clamp(84px, 23vw, 120px)',
+              height: 'clamp(117px, 32vw, 168px)',
+              top: 0, left: 0, zIndex: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.85)',
             }}
             initial={{ rotateY: card ? 90 : 0, scale: 0.9 }}
             animate={{ rotateY: 0, scale: 1 }}
@@ -84,14 +110,6 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
             )}
           </motion.div>
         </AnimatePresence>
-        {won && (
-          <motion.div
-            className="absolute inset-0 rounded-xl pointer-events-none"
-            style={{ border: '2px solid #22c55e', zIndex: 20, width: 120, height: 168,
-              boxShadow: 'inset 0 0 20px rgba(34,197,94,0.3)' }}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          />
-        )}
       </div>
     </div>
   );
@@ -106,6 +124,9 @@ export default function GameBoard() {
 
   const [showWinAnim, setShowWinAnim] = useState(false);
   const [showRules, setShowRules] = useState(false);
+  const [prevCounts, setPrevCounts] = useState<{ [key: string]: number }>({});
+  const [myScoreChange, setMyScoreChange] = useState<number | null>(null);
+  const [opponentScoreChange, setOpponentScoreChange] = useState<number | null>(null);
 
   if (!gameId || !playerId) return null;
 
@@ -131,6 +152,23 @@ export default function GameBoard() {
     }
   }, [roundWinner, roundNumber, isWar]);
 
+  useEffect(() => {
+    if (Object.keys(cardCounts).length > 0 && Object.keys(prevCounts).length > 0) {
+      const myChange = myCount - (prevCounts[playerId] ?? myCount);
+      const oppChange = opponentCount - (prevCounts[opponentId] ?? opponentCount);
+      
+      if (myChange !== 0) {
+        setMyScoreChange(myChange);
+        setTimeout(() => setMyScoreChange(null), 1500);
+      }
+      if (oppChange !== 0) {
+        setOpponentScoreChange(oppChange);
+        setTimeout(() => setOpponentScoreChange(null), 1500);
+      }
+    }
+    setPrevCounts(cardCounts);
+  }, [cardCounts, playerId, opponentId, myCount, opponentCount, prevCounts]);
+
   const handleFlip = () => {
     if (!gameId || myReady) return;
     setMyReady(true);
@@ -147,17 +185,37 @@ export default function GameBoard() {
     <div className="relative min-h-screen w-full flex flex-col select-none">
 
       {/* ── TOP BAR ── */}
-      <div className="relative z-20 flex items-start justify-between px-6 pt-5">
+      <div className="relative z-20 flex items-start justify-between px-3 sm:px-6 pt-3 sm:pt-5">
         <Link href="/lobby">
           <motion.button
             className="relative"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            <Image src="/back.png" alt="Back" width={150} height={50} className="object-contain" />
+            <Image src="/back.png" alt="Back" width={100} height={33} className="object-contain sm:w-[150px] sm:h-[50px]" />
           </motion.button>
         </Link>
 
+        <div className="flex items-center gap-3">
+          <motion.button
+            type="button"
+            onClick={() => setShowRules(true)}
+            className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm"
+            style={{
+              background: 'linear-gradient(to bottom, #2b1c0b, #1a1208)',
+              border: '1px solid #78501a',
+              color: '#d4a74a',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            aria-label="Game rules"
+          >
+            i
+          </motion.button>
+          <div className="hidden sm:block" style={{ width: 40 }} />
+        </div>
+      </div>
         <div className="flex flex-col items-center gap-1">
           <h1
             className="font-black tracking-[0.15em] leading-none"
@@ -194,27 +252,6 @@ export default function GameBoard() {
             </motion.div>
           )}
         </div>
-
-        <div className="flex items-center gap-3">
-          <motion.button
-            type="button"
-            onClick={() => setShowRules(true)}
-            className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm"
-            style={{
-              background: 'linear-gradient(to bottom, #2b1c0b, #1a1208)',
-              border: '1px solid #78501a',
-              color: '#d4a74a',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            aria-label="Game rules"
-          >
-            i
-          </motion.button>
-          <div style={{ width: 40 }} />
-        </div>
-      </div>
 
       {showRules && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -257,44 +294,53 @@ export default function GameBoard() {
               <li><span style={{ color: '#d4a74a' }}>5.</span> Game ends after 5 rounds or when a player runs out of cards.</li>
               <li><span style={{ color: '#d4a74a' }}>6.</span> If the game ends early, the player with more cards wins.</li>
             </ol>
+            <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(120,80,26,0.3)' }}>
+              <h3 className="font-bold tracking-wider mb-2" style={{ color: '#d4a74a', fontSize: '0.9rem' }}>SCORING</h3>
+              <ul className="space-y-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                <li><span style={{ color: '#22c55e' }}>+2</span> cards for winning a normal round (your card + opponent's card)</li>
+                <li><span style={{ color: '#22c55e' }}>+4</span> or more cards for winning a WAR (all face-down + face-up cards)</li>
+                <li><span style={{ color: '#ef4444' }}>-2</span> cards for losing a normal round</li>
+                <li>Your score is the total number of cards you currently hold</li>
+              </ul>
+            </div>
           </motion.div>
         </div>
       )}
 
       {/* ── PLAYER SCORES ── */}
-      <div className="relative z-20 flex items-start justify-between px-10 pt-3">
-        <div className="text-center" style={{ minWidth: 130 }}>
-          <p className="font-bold text-white text-xl" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)', fontFamily: 'Georgia, serif' }}>
+      <div className="relative z-20 flex items-start justify-between px-4 sm:px-10 pt-2 sm:pt-3">
+        <div className="text-center" style={{ minWidth: 80 }}>
+          <p className="font-bold text-white text-sm sm:text-xl" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)', fontFamily: 'Georgia, serif' }}>
             Player 1
           </p>
-          <p className="text-xs font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{oppLabel}</p>
-          <p className="font-bold tracking-widest text-sm mt-2 uppercase" style={{ color: '#d4a74a' }}>
+          <p className="text-[10px] sm:text-xs font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{oppLabel}</p>
+          {/* <p className="font-bold tracking-widest text-xs sm:text-sm mt-1 sm:mt-2 uppercase" style={{ color: '#d4a74a' }}>
             Score: {opponentCount}
-          </p>
+          </p> */}
         </div>
         <div className="flex-1" />
-        <div className="text-center" style={{ minWidth: 130 }}>
-          <p className="font-bold text-white text-xl" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)', fontFamily: 'Georgia, serif' }}>
+        <div className="text-center" style={{ minWidth: 80 }}>
+          <p className="font-bold text-white text-sm sm:text-xl" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)', fontFamily: 'Georgia, serif' }}>
             Player 2
           </p>
-          <p className="text-xs font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{myLabel}</p>
-          <p className="font-bold tracking-widest text-sm mt-2 uppercase" style={{ color: '#d4a74a' }}>
+          <p className="text-[10px] sm:text-xs font-mono mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>{myLabel}</p>
+          {/* <p className="font-bold tracking-widest text-xs sm:text-sm mt-1 sm:mt-2 uppercase" style={{ color: '#d4a74a' }}>
             Score: {myCount}
-          </p>
+          </p> */}
         </div>
       </div>
 
       {/* ── MAIN PLAY AREA ── */}
-      <div className="relative z-20 flex-1 flex items-center justify-center px-4" style={{ paddingBottom: 160 }}>
-        <div className="w-full max-w-4xl flex items-center justify-between gap-4">
+      <div className="relative z-20 flex-1 flex items-center justify-center px-2 sm:px-4" style={{ paddingBottom: 140 }}>
+        <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
 
           {/* Left side — opponent won-cards deck */}
-          <div className="flex-shrink-0">
-            <SideDeck count={opponentCount} label="Opponent" isMe={false} />
+          <div className="flex-shrink-0 sm:block hidden">
+            <SideDeck count={opponentCount} label="Opponent" isMe={false} scoreChange={opponentScoreChange} />
           </div>
 
           {/* Center — big flip cards */}
-          <div className="flex-1 flex items-center justify-center gap-6">
+          <div className="flex-1 flex items-center justify-center gap-3 sm:gap-6">
             {/* Opponent center card */}
             <div className="relative">
               <BigCard card={opponentCard} label="Opponent's Card" won={opponentWon} />
@@ -312,22 +358,22 @@ export default function GameBoard() {
             </div>
 
             {/* VS divider */}
-            <div className="flex flex-col items-center gap-2 flex-shrink-0">
+            <div className="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
               <AnimatePresence>
                 {roundWinner && (
                   <motion.p
                     key={`result-${roundNumber}`}
-                    className="font-black text-sm tracking-widest text-center"
+                    className="font-black text-xs sm:text-sm tracking-widest text-center"
                     style={{ color: iWon ? '#22c55e' : '#ef4444', textShadow: '0 0 16px currentColor' }}
                     initial={{ opacity: 0, scale: 0.5, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0 }}
                   >
-                    {iWon ? '🏆 YOU WIN' : '💀 THEY WIN'}
+                    {iWon ? '🏆 YOU WON' : '💀 YOU LOST'}
                   </motion.p>
                 )}
               </AnimatePresence>
-              <p className="font-black text-3xl" style={{ color: 'rgba(255,255,255,0.15)' }}>VS</p>
+              <p className="font-black text-xl sm:text-3xl" style={{ color: 'rgba(255,255,255,0.55)' }}>VS</p>
             </div>
 
             {/* My center card */}
@@ -348,8 +394,14 @@ export default function GameBoard() {
           </div>
 
           {/* Right side — my won-cards deck */}
-          <div className="flex-shrink-0">
-            <SideDeck count={myCount} label="Your Deck" isMe />
+          <div className="flex-shrink-0 sm:block hidden">
+            <SideDeck count={myCount} label="Your Deck" isMe scoreChange={myScoreChange} />
+          </div>
+
+          {/* Mobile deck indicators */}
+          <div className="sm:hidden flex items-center justify-between w-full px-4 mt-4">
+            <SideDeck count={opponentCount} label="Opp" isMe={false} scoreChange={opponentScoreChange} />
+            <SideDeck count={myCount} label="You" isMe scoreChange={myScoreChange} />
           </div>
 
         </div>
