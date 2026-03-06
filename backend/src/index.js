@@ -38,6 +38,89 @@ app.get('/api/games/:gameId/reveal', async (req, res) => {
   }
 });
 
+app.get('/api/games/:gameId/fairness', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const sessionResult = await pool.query(
+      `SELECT session_uuid, COALESCE(cardinality(job_ids), 0) AS expected_jobs
+       FROM game_sessions
+       WHERE session_uuid = $1::uuid`,
+      [gameId]
+    );
+    if (!sessionResult.rows.length) {
+      return res.status(404).json({ error: 'Game session not found' });
+    }
+
+    const expectedJobs = Number(sessionResult.rows[0].expected_jobs) || 0;
+    const proofsResult = await pool.query(
+      `SELECT
+         bb_verification_status,
+         LOWER(COALESCE(submit_response_json->>'optimisticVerify', '')) AS optimistic_verify,
+         updated_at
+       FROM proofs
+       WHERE session_uuid = $1::uuid`,
+      [gameId]
+    );
+
+    const proofs = proofsResult.rows;
+    const observedProofs = proofs.length;
+    const targetCount = expectedJobs > 0 ? expectedJobs : observedProofs;
+
+    const bbTrueCount = proofs.filter((p) => p.bb_verification_status === true).length;
+    const bbFalseCount = proofs.filter((p) => p.bb_verification_status === false).length;
+
+    const optimisticSuccessCount = proofs.filter(
+      (p) => p.optimistic_verify === 'success'
+    ).length;
+    const optimisticFailedCount = proofs.filter(
+      (p) => p.optimistic_verify === 'failed'
+    ).length;
+
+    const resolveStatus = (successCount, failedCount) => {
+      if (targetCount <= 0 || observedProofs < targetCount) return 'pending';
+      if (failedCount > 0) return 'failed';
+      if (successCount === targetCount) return 'passed';
+      return 'pending';
+    };
+
+    const bbStatus = resolveStatus(bbTrueCount, bbFalseCount);
+    const optimisticStatus = resolveStatus(
+      optimisticSuccessCount,
+      optimisticFailedCount
+    );
+
+    const lastUpdatedAt = proofs.reduce((latest, row) => {
+      const ts = row.updated_at ? new Date(row.updated_at).toISOString() : null;
+      if (!ts) return latest;
+      if (!latest) return ts;
+      return ts > latest ? ts : latest;
+    }, null);
+
+    return res.json({
+      gameId,
+      expectedProofs: targetCount,
+      observedProofs,
+      checks: {
+        bbjs: {
+          status: bbStatus,
+          passedCount: bbTrueCount,
+          failedCount: bbFalseCount,
+          expectedCount: targetCount,
+        },
+        optimisticVerify: {
+          status: optimisticStatus,
+          passedCount: optimisticSuccessCount,
+          failedCount: optimisticFailedCount,
+          expectedCount: targetCount,
+        },
+      },
+      lastUpdatedAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 setupSocketHandlers(io);
 
 const PORT = process.env.PORT || 4000;

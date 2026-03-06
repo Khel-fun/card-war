@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,7 +13,16 @@ import Image from 'next/image';
 export default function GamePage() {
   const { address } = useAccount();
   const router = useRouter();
-  const { status, gameWinner, playerId, roundNumber, cardCounts, reset } = useGameStore();
+  const { status, gameWinner, playerId, roundNumber, cardCounts, gameId, reset } = useGameStore();
+  const [fairness, setFairness] = useState<{
+    loading: boolean;
+    bbjsStatus: 'passed' | 'pending' | 'failed';
+    optimisticStatus: 'passed' | 'pending' | 'failed';
+  }>({
+    loading: false,
+    bbjsStatus: 'pending',
+    optimisticStatus: 'pending',
+  });
 
   useSocket(address);
 
@@ -23,12 +32,50 @@ export default function GamePage() {
     }
   }, [status, router]);
 
+  useEffect(() => {
+    if (status !== 'game_over' || !gameId) return;
+
+    const controller = new AbortController();
+    const fetchFairness = async () => {
+      try {
+        setFairness((prev) => ({ ...prev, loading: true }));
+        const backendUrl =
+          process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+        const response = await fetch(
+          `${backendUrl}/api/games/${gameId}/fairness`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error(`Fairness API failed: ${response.status}`);
+        }
+        const data = await response.json();
+        setFairness({
+          loading: false,
+          bbjsStatus: data?.checks?.bbjs?.status || 'pending',
+          optimisticStatus: data?.checks?.optimisticVerify?.status || 'pending',
+        });
+      } catch (error) {
+        if ((error as any)?.name === 'AbortError') return;
+        setFairness((prev) => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchFairness();
+    return () => controller.abort();
+  }, [status, gameId]);
+
   const isWinner = gameWinner === playerId;
   const opponentId = Object.keys(cardCounts).find(id => id !== playerId) ?? '';
   const myScore = cardCounts[playerId ?? ''] ?? 0;
   const opponentScore = cardCounts[opponentId] ?? 0;
 
   if (status === 'game_over') {
+    const checkLabel = (s: 'passed' | 'pending' | 'failed') => {
+      if (s === 'passed') return 'Passed';
+      if (s === 'failed') return 'Failed';
+      return 'Pending';
+    };
+
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center"
@@ -75,11 +122,13 @@ export default function GamePage() {
           >
             <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80 mb-3">Fairness Checks</p>
             <div className="space-y-2 text-sm text-emerald-100">
-              <p>• BB.js proof verified</p>
-              <p>• Kurier optimistic verify passed</p>
+              <p>• BB.js proof verified: {checkLabel(fairness.bbjsStatus)}</p>
+              <p>• Kurier optimistic verify passed: {checkLabel(fairness.optimisticStatus)}</p>
             </div>
             <p className="mt-3 text-xs text-amber-200/80">
-              Final aggregation/on-chain attestation may complete later.
+              {fairness.loading
+                ? 'Refreshing fairness checks...'
+                : 'Final aggregation/on-chain attestation may complete later.'}
             </p>
           </div>
 
