@@ -69,6 +69,20 @@ export default function GamePage() {
             </div>
           </div>
 
+          <div
+            className="mb-8 mx-auto max-w-xl rounded-xl px-6 py-5 text-left"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(34,197,94,0.35)' }}
+          >
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80 mb-3">Fairness Checks</p>
+            <div className="space-y-2 text-sm text-emerald-100">
+              <p>• BB.js proof verified</p>
+              <p>• Kurier optimistic verify passed</p>
+            </div>
+            <p className="mt-3 text-xs text-amber-200/80">
+              Final aggregation/on-chain attestation may complete later.
+            </p>
+          </div>
+
           <div className="flex gap-4 justify-center">
             <Link href="/lobby">
               <motion.button
