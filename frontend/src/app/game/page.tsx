@@ -16,12 +16,12 @@ export default function GamePage() {
   const { status, gameWinner, playerId, roundNumber, cardCounts, gameId, reset } = useGameStore();
   const [fairness, setFairness] = useState<{
     loading: boolean;
-    bbjsStatus: 'passed' | 'pending' | 'failed';
-    optimisticStatus: 'passed' | 'pending' | 'failed';
+    shuffleChecked: boolean;
+    dealChecked: boolean;
   }>({
     loading: false,
-    bbjsStatus: 'pending',
-    optimisticStatus: 'pending',
+    shuffleChecked: false,
+    dealChecked: false,
   });
 
   useSocket(address);
@@ -51,8 +51,8 @@ export default function GamePage() {
         const data = await response.json();
         setFairness({
           loading: false,
-          bbjsStatus: data?.checks?.bbjs?.status || 'pending',
-          optimisticStatus: data?.checks?.optimisticVerify?.status || 'pending',
+          shuffleChecked: Boolean(data?.fairness?.shuffle?.checked),
+          dealChecked: Boolean(data?.fairness?.deal?.checked),
         });
       } catch (error) {
         if ((error as any)?.name === 'AbortError') return;
@@ -70,12 +70,6 @@ export default function GamePage() {
   const opponentScore = cardCounts[opponentId] ?? 0;
 
   if (status === 'game_over') {
-    const checkLabel = (s: 'passed' | 'pending' | 'failed') => {
-      if (s === 'passed') return 'Passed';
-      if (s === 'failed') return 'Failed';
-      return 'Pending';
-    };
-
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-4 gap-8 relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center"
@@ -122,8 +116,8 @@ export default function GamePage() {
           >
             <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80 mb-3">Fairness Checks</p>
             <div className="space-y-2 text-sm text-emerald-100">
-              <p>• BB.js proof verified: {checkLabel(fairness.bbjsStatus)}</p>
-              <p>• Kurier optimistic verify passed: {checkLabel(fairness.optimisticStatus)}</p>
+              <p>{fairness.shuffleChecked ? '✅' : '⬜'} Shuffle fairness</p>
+              <p>{fairness.dealChecked ? '✅' : '⬜'} Deal fairness</p>
             </div>
             <p className="mt-3 text-xs text-amber-200/80">
               {fairness.loading

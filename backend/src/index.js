@@ -41,53 +41,48 @@ app.get('/api/games/:gameId/reveal', async (req, res) => {
 app.get('/api/games/:gameId/fairness', async (req, res) => {
   try {
     const { gameId } = req.params;
-    const sessionResult = await pool.query(
-      `SELECT session_uuid, COALESCE(cardinality(job_ids), 0) AS expected_jobs
-       FROM game_sessions
-       WHERE session_uuid = $1::uuid`,
+    const sessionExists = await pool.query(
+      `SELECT 1 FROM game_sessions WHERE session_uuid = $1::uuid LIMIT 1`,
       [gameId]
     );
-    if (!sessionResult.rows.length) {
+    if (!sessionExists.rows.length) {
       return res.status(404).json({ error: 'Game session not found' });
     }
 
-    const expectedJobs = Number(sessionResult.rows[0].expected_jobs) || 0;
     const proofsResult = await pool.query(
       `SELECT
+         c.kind,
          bb_verification_status,
          LOWER(COALESCE(submit_response_json->>'optimisticVerify', '')) AS optimistic_verify,
          updated_at
        FROM proofs
+       LEFT JOIN circuits c ON c.circuit_uuid = proofs.circuit_uuid
        WHERE session_uuid = $1::uuid`,
       [gameId]
     );
 
     const proofs = proofsResult.rows;
-    const observedProofs = proofs.length;
-    const targetCount = expectedJobs > 0 ? expectedJobs : observedProofs;
-
-    const bbTrueCount = proofs.filter((p) => p.bb_verification_status === true).length;
-    const bbFalseCount = proofs.filter((p) => p.bb_verification_status === false).length;
-
-    const optimisticSuccessCount = proofs.filter(
-      (p) => p.optimistic_verify === 'success'
-    ).length;
-    const optimisticFailedCount = proofs.filter(
-      (p) => p.optimistic_verify === 'failed'
-    ).length;
-
-    const resolveStatus = (successCount, failedCount) => {
-      if (targetCount <= 0 || observedProofs < targetCount) return 'pending';
-      if (failedCount > 0) return 'failed';
-      if (successCount === targetCount) return 'passed';
-      return 'pending';
+    const byKind = {
+      shuffle: proofs.filter((p) => p.kind === 'shuffle'),
+      deal: proofs.filter((p) => p.kind === 'deal'),
     };
 
-    const bbStatus = resolveStatus(bbTrueCount, bbFalseCount);
-    const optimisticStatus = resolveStatus(
-      optimisticSuccessCount,
-      optimisticFailedCount
-    );
+    const expectedPerKind = 2;
+    const evaluateKind = (rows) => {
+      const bothPassed = rows.filter(
+        (r) =>
+          r.bb_verification_status === true &&
+          r.optimistic_verify === 'success'
+      ).length;
+      return {
+        checked: bothPassed >= expectedPerKind,
+        passedCount: bothPassed,
+        expectedCount: expectedPerKind,
+      };
+    };
+
+    const shuffle = evaluateKind(byKind.shuffle);
+    const deal = evaluateKind(byKind.deal);
 
     const lastUpdatedAt = proofs.reduce((latest, row) => {
       const ts = row.updated_at ? new Date(row.updated_at).toISOString() : null;
@@ -98,21 +93,9 @@ app.get('/api/games/:gameId/fairness', async (req, res) => {
 
     return res.json({
       gameId,
-      expectedProofs: targetCount,
-      observedProofs,
-      checks: {
-        bbjs: {
-          status: bbStatus,
-          passedCount: bbTrueCount,
-          failedCount: bbFalseCount,
-          expectedCount: targetCount,
-        },
-        optimisticVerify: {
-          status: optimisticStatus,
-          passedCount: optimisticSuccessCount,
-          failedCount: optimisticFailedCount,
-          expectedCount: targetCount,
-        },
+      fairness: {
+        shuffle,
+        deal,
       },
       lastUpdatedAt,
     });
