@@ -24,11 +24,23 @@ async function reconcileOnce() {
 
     const batchSize = Number(process.env.ZK_RECONCILE_BATCH_SIZE || 25);
     const staleSeconds = Number(process.env.ZK_RECONCILE_STALE_SECONDS || 60);
+    const maxRetries = Number(process.env.ZK_RECONCILE_MAX_RETRIES || 100);
     const jobs = await trackingService.getStaleJobsForReconciliation(
       Number.isFinite(batchSize) ? batchSize : 25,
       Number.isFinite(staleSeconds) ? staleSeconds : 60,
     );
     if (!jobs.length) return;
+
+    console.log(`[ZK: RECONCILE] Processing ${jobs.length} stale jobs`);
+
+    // Check if polling is enabled
+    const pollingEnabled = process.env.ZK_RECONCILE_POLLING_ENABLED !== "false";
+    if (!pollingEnabled) {
+      console.log(
+        `[ZK: RECONCILE] Polling disabled via ZK_RECONCILE_POLLING_ENABLED. Skipping ${jobs.length} jobs.`,
+      );
+      return;
+    }
 
     const affectedSessions = new Set<string>();
     for (const job of jobs) {
@@ -60,10 +72,18 @@ async function reconcileOnce() {
           affectedSessions.add(job.session_uuid);
         }
       } catch (error: any) {
-        console.warn(
-          `[ZK: RECONCILE] failed for job ${job.job_id}:`,
-          error?.message || error,
-        );
+        const isNetworkError = error?.code === 'ECONNREFUSED' || error?.code === 'ETIMEDOUT' || error?.response?.status >= 500;
+        if (isNetworkError) {
+          console.warn(
+            `[ZK: RECONCILE] Network/service error for job ${job.job_id}, will retry later:`,
+            error?.code || error?.message,
+          );
+        } else {
+          console.warn(
+            `[ZK: RECONCILE] failed for job ${job.job_id}:`,
+            error?.message || error,
+          );
+        }
       }
     }
 
