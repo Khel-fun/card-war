@@ -13,10 +13,16 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
+    credentials: true,
+    allowedHeaders: ['ngrok-skip-browser-warning', 'content-type'],
   },
 });
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ 
+  origin: '*',
+  credentials: true,
+  allowedHeaders: ['ngrok-skip-browser-warning', 'content-type'],
+}));
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
