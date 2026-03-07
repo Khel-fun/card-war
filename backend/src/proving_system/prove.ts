@@ -283,6 +283,114 @@ export async function generateProof(
   };
 }
 
+/**
+ * Submit proof for verification and return immediately.
+ * The reconciliation worker will poll for status updates asynchronously.
+ * Use this for production to avoid blocking and reduce API calls.
+ */
+export async function submitProofForVerification(
+  circuit_name: CircuitKind,
+  proofHex: string,
+  formattedPublicInputs: string[],
+  context: TrackingContext = {},
+): Promise<{ jobId: string; status: string }> {
+  const { KURIER_URL, KURIER_API } = process.env;
+  if (!KURIER_URL || !KURIER_API) {
+    throw new Error("[ERR: Env] Missing environment variables");
+  }
+
+  const circuitSetup = await ensureCircuitSetup(circuit_name, context);
+  const vkHash = circuitSetup.vkHash;
+  if (vkHash) {
+    console.log(`## vkHash found for ${circuit_name}: ${vkHash}`);
+  } else {
+    console.log(
+      `[WARN: ZKV] vkHash unavailable for ${circuit_name}; submitting with full verification key`,
+    );
+  }
+
+  const proofPayload = {
+    proofType: "ultrahonk",
+    vkRegistered: Boolean(vkHash),
+    chainId: 84532,
+    proofOptions: {
+      variant: "Plain",
+    },
+    proofData: {
+      proof: `${proofHex}`,
+      publicSignals: normalizePublicInputs(formattedPublicInputs),
+      vk: vkHash || circuitSetup.verificationKeyHex,
+    },
+    submissionMode: "attestation",
+  };
+
+  console.log("## Submitting Proof to Kurier");
+  const submitResponse = await axios.post(
+    `${KURIER_URL}/submit-proof/${KURIER_API}`,
+    proofPayload,
+  );
+
+  console.log(
+    `Proof response status code for ${circuit_name}:`,
+    submitResponse.status,
+  );
+  if (submitResponse.data.optimisticVerify !== "success") {
+    throw new Error("[ERR: Proof Verification] Optimistic verification failed");
+  }
+
+  const jobId = submitResponse.data.jobId;
+  console.log(
+    `## Proof submitted successfully for ${circuit_name}. Job ID: ${jobId}`,
+  );
+
+  const proofUuid = context.proofUuid ?? null;
+  let submittedJobPersisted = false;
+  try {
+    await trackingService.upsertVerificationJob({
+      jobId,
+      status: "Submitted",
+      aggregationResponse: submitResponse.data,
+    });
+    submittedJobPersisted = true;
+  } catch (error: any) {
+    console.error(
+      "[TRACKING] upsert submitted job failed:",
+      error?.message || error,
+    );
+  }
+
+  if (proofUuid && context.gameId) {
+    if (!submittedJobPersisted) {
+      console.warn(
+        `[TRACKING] skipping proof submission attach for ${proofUuid} because verification job ${jobId} was not persisted`,
+      );
+    } else {
+      await safeTrack("persist proof submission", async () =>
+        trackingService.attachProofSubmission(
+          context.gameId!,
+          proofUuid,
+          jobId,
+          proofPayload,
+          submitResponse.data,
+        ),
+      );
+    }
+  }
+
+  console.log(
+    `[ZKV] Proof submitted for ${circuit_name}, job ${jobId}. Reconciliation worker will handle status updates.`,
+  );
+
+  return {
+    jobId,
+    status: "Submitted",
+  };
+}
+
+/**
+ * @deprecated Use submitProofForVerification instead to avoid blocking.
+ * This function blocks until the proof is aggregated, which can cause high CPU usage.
+ */
 export async function verifyProof(
   circuit_name: CircuitKind,
   proofHex: string,
@@ -372,8 +480,53 @@ export async function verifyProof(
     }
   }
 
+  // Use environment variable to control blocking behavior
+  const shouldBlock = process.env.ZK_VERIFY_BLOCKING === "true";
+  if (!shouldBlock) {
+    console.log(
+      `[ZKV] Non-blocking mode enabled. Returning immediately after submission for job ${jobId}`,
+    );
+    return {
+      jobId,
+      status: "Submitted",
+      aggregationId: null,
+      domainId: null,
+      onchain: {
+        attempted: false,
+        verified: false,
+        domainId: null,
+        txHash: null,
+        contractAddress: process.env.CARDWAR_REGISTRY_ADDRESS || null,
+      },
+    };
+  }
+
+  console.log(
+    `[ZKV] Blocking mode enabled. Will poll for job ${jobId} status...`,
+  );
   let transientPollFailures = 0;
+  let pollCount = 0;
+  const maxPolls = Number(process.env.ZK_VERIFY_MAX_POLLS || 50);
   while (true) {
+    pollCount++;
+    if (pollCount > maxPolls) {
+      console.warn(
+        `[ZKV] Max poll attempts (${maxPolls}) reached for job ${jobId}. Stopping poll loop.`,
+      );
+      return {
+        jobId,
+        status: "Polling timeout",
+        aggregationId: null,
+        domainId: null,
+        onchain: {
+          attempted: false,
+          verified: false,
+          domainId: null,
+          txHash: null,
+          contractAddress: process.env.CARDWAR_REGISTRY_ADDRESS || null,
+        },
+      };
+    }
     let jobStatusResponse;
     try {
       jobStatusResponse = await axios.get(

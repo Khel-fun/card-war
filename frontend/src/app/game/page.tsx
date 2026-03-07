@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,7 +13,16 @@ import Image from 'next/image';
 export default function GamePage() {
   const { address } = useAccount();
   const router = useRouter();
-  const { status, gameWinner, playerId, roundNumber, cardCounts, reset } = useGameStore();
+  const { status, gameWinner, playerId, roundNumber, cardCounts, gameId, reset } = useGameStore();
+  const [fairness, setFairness] = useState<{
+    loading: boolean;
+    shuffleChecked: boolean;
+    dealChecked: boolean;
+  }>({
+    loading: false,
+    shuffleChecked: false,
+    dealChecked: false,
+  });
 
   useSocket(address);
 
@@ -22,6 +31,38 @@ export default function GamePage() {
       router.push('/lobby');
     }
   }, [status, router]);
+
+  useEffect(() => {
+    if (status !== 'game_over' || !gameId) return;
+
+    const controller = new AbortController();
+    const fetchFairness = async () => {
+      try {
+        setFairness((prev) => ({ ...prev, loading: true }));
+        const backendUrl =
+          process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+        const response = await fetch(
+          `${backendUrl}/api/games/${gameId}/fairness`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          throw new Error(`Fairness API failed: ${response.status}`);
+        }
+        const data = await response.json();
+        setFairness({
+          loading: false,
+          shuffleChecked: Boolean(data?.fairness?.shuffle?.checked),
+          dealChecked: Boolean(data?.fairness?.deal?.checked),
+        });
+      } catch (error) {
+        if ((error as any)?.name === 'AbortError') return;
+        setFairness((prev) => ({ ...prev, loading: false }));
+      }
+    };
+
+    fetchFairness();
+    return () => controller.abort();
+  }, [status, gameId]);
 
   const isWinner = gameWinner === playerId;
   const opponentId = Object.keys(cardCounts).find(id => id !== playerId) ?? '';
@@ -67,6 +108,22 @@ export default function GamePage() {
               <p className="text-amber-400/60 text-xs uppercase tracking-widest mb-1">Opponent Score</p>
               <p className="text-4xl font-bold text-white font-display">{opponentScore}</p>
             </div>
+          </div>
+
+          <div
+            className="mb-8 mx-auto max-w-xl rounded-xl px-6 py-5 text-left"
+            style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(34,197,94,0.35)' }}
+          >
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80 mb-3">Fairness Checks</p>
+            <div className="space-y-2 text-sm text-emerald-100">
+              <p>{fairness.shuffleChecked ? '✅' : '⬜'} Shuffle fairness</p>
+              <p>{fairness.dealChecked ? '✅' : '⬜'} Deal fairness</p>
+            </div>
+            <p className="mt-3 text-xs text-amber-200/80">
+              {fairness.loading
+                ? 'Refreshing fairness checks...'
+                : 'Final aggregation/on-chain attestation may complete later.'}
+            </p>
           </div>
 
           <div className="flex gap-4 justify-center">
