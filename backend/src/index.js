@@ -44,6 +44,72 @@ app.get('/api/games/:gameId/reveal', async (req, res) => {
   }
 });
 
+app.get('/api/games/:gameId/fairness', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const sessionExists = await pool.query(
+      `SELECT 1 FROM game_sessions WHERE session_uuid = $1::uuid LIMIT 1`,
+      [gameId]
+    );
+    if (!sessionExists.rows.length) {
+      return res.status(404).json({ error: 'Game session not found' });
+    }
+
+    const proofsResult = await pool.query(
+      `SELECT
+         c.kind,
+         bb_verification_status,
+         LOWER(COALESCE(submit_response_json->>'optimisticVerify', '')) AS optimistic_verify,
+         updated_at
+       FROM proofs
+       LEFT JOIN circuits c ON c.circuit_uuid = proofs.circuit_uuid
+       WHERE session_uuid = $1::uuid`,
+      [gameId]
+    );
+
+    const proofs = proofsResult.rows;
+    const byKind = {
+      shuffle: proofs.filter((p) => p.kind === 'shuffle'),
+      deal: proofs.filter((p) => p.kind === 'deal'),
+    };
+
+    const expectedPerKind = 2;
+    const evaluateKind = (rows) => {
+      const bothPassed = rows.filter(
+        (r) =>
+          r.bb_verification_status === true &&
+          r.optimistic_verify === 'success'
+      ).length;
+      return {
+        checked: bothPassed >= expectedPerKind,
+        passedCount: bothPassed,
+        expectedCount: expectedPerKind,
+      };
+    };
+
+    const shuffle = evaluateKind(byKind.shuffle);
+    const deal = evaluateKind(byKind.deal);
+
+    const lastUpdatedAt = proofs.reduce((latest, row) => {
+      const ts = row.updated_at ? new Date(row.updated_at).toISOString() : null;
+      if (!ts) return latest;
+      if (!latest) return ts;
+      return ts > latest ? ts : latest;
+    }, null);
+
+    return res.json({
+      gameId,
+      fairness: {
+        shuffle,
+        deal,
+      },
+      lastUpdatedAt,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 setupSocketHandlers(io);
 
 const PORT = process.env.PORT || 4000;
