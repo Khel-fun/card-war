@@ -43,7 +43,7 @@ export default function PlayingCard({ rank, suit, faceDown = false, animate = fa
   if (faceDown) {
     return (
       <motion.div
-        className={`${sizeClass} rounded-lg overflow-hidden shadow-xl relative`}
+        className={`${sizeClass} rounded-sm overflow-hidden shadow-xl relative`}
         initial={animate ? { rotateY: 90, scale: 0.8 } : {}}
         animate={{ rotateY: 0, scale: 1 }}
         transition={{ duration: 0.4 }}
@@ -71,7 +71,7 @@ export default function PlayingCard({ rank, suit, faceDown = false, animate = fa
 
   return (
     <motion.div
-      className={`${sizeClass} rounded-lg overflow-hidden shadow-xl relative`}
+      className={`${sizeClass} rounded-sm overflow-hidden shadow-xl relative`}
       initial={animate ? { rotateY: 90, scale: 0.8, y: -20 } : {}}
       animate={{ rotateY: 0, scale: 1, y: 0 }}
       transition={{ duration: 0.4, type: 'spring' }}

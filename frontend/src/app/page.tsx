@@ -101,8 +101,8 @@ export default function HomePage() {
               }}
             >
               <div className="text-2xl mb-2">{f.icon}</div>
-              <p className="font-bold text-sm mb-1" style={{ color: '#d4a74a' }}>{f.title}</p>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{f.desc}</p>
+              <p className="font-bold text-xl mb-1" style={{ color: '#d4a74a', fontFamily: 'Georgia, serif' }}>{f.title}</p>
+              <p className="text-md font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>{f.desc}</p>
             </div>
           ))}
         </div>

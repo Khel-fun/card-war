@@ -46,7 +46,7 @@ function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: s
           {scoreChange !== null && scoreChange !== undefined && (
             <motion.p
               key={`score-${scoreChange}`}
-              className="absolute font-black text-sm"
+              className="absolute font-black text-xl"
               style={{
                 color: scoreChange > 0 ? '#22c55e' : '#ef4444',
                 textShadow: '0 0 10px currentColor',
@@ -76,7 +76,7 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
         {[2, 1].map(i => (
           <div
             key={i}
-            className="absolute rounded-lg sm:rounded-xl overflow-hidden"
+            className="absolute rounded-md overflow-hidden"
             style={{
               width: 'clamp(84px, 23vw, 120px)',
               height: 'clamp(117px, 32vw, 168px)',
@@ -91,7 +91,7 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
         <AnimatePresence mode="wait">
           <motion.div
             key={card ? `${card.rank}-${card.suit}` : 'back'}
-            className="absolute rounded-lg sm:rounded-xl overflow-hidden"
+            className="absolute rounded-md overflow-hidden"
             style={{
               width: 'clamp(84px, 23vw, 120px)',
               height: 'clamp(117px, 32vw, 168px)',
@@ -308,7 +308,7 @@ export default function GameBoard() {
       )}
 
       {/* ── PLAYER SCORES ── */}
-      <div className="relative z-20 flex items-start justify-between px-4 sm:px-10 pt-2 sm:pt-3">
+      <div className="relative z-20 flex items-start justify-between px-4 sm:px-10 pt-2 sm:pt-3 max-w-4xl mx-auto w-full">
         <div className="text-center" style={{ minWidth: 80 }}>
           <p className="font-bold text-white text-sm sm:text-xl" style={{ textShadow: '0 2px 6px rgba(0,0,0,0.8)', fontFamily: 'Georgia, serif' }}>
             Player 1
@@ -331,7 +331,7 @@ export default function GameBoard() {
       </div>
 
       {/* ── MAIN PLAY AREA ── */}
-      <div className="relative z-20 flex-1 flex items-center justify-center px-2 sm:px-4" style={{ paddingBottom: 140 }}>
+      <div className="relative z-20 flex-1 flex flex-col gap-4 items-center justify-center px-2 sm:px-4" style={{ paddingBottom: 140 }}>
         <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
 
           {/* Left side — opponent won-cards deck */}
@@ -359,20 +359,7 @@ export default function GameBoard() {
 
             {/* VS divider */}
             <div className="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
-              <AnimatePresence>
-                {roundWinner && (
-                  <motion.p
-                    key={`result-${roundNumber}`}
-                    className="font-black text-xs sm:text-sm tracking-widest text-center"
-                    style={{ color: iWon ? '#22c55e' : '#ef4444', textShadow: '0 0 16px currentColor' }}
-                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                  >
-                    {iWon ? '🏆 YOU WON' : '💀 YOU LOST'}
-                  </motion.p>
-                )}
-              </AnimatePresence>
+              
               <p className="font-black text-xl sm:text-3xl" style={{ color: 'rgba(255,255,255,0.55)' }}>VS</p>
             </div>
 
@@ -405,6 +392,20 @@ export default function GameBoard() {
           </div>
 
         </div>
+        <AnimatePresence>
+                {roundWinner && (
+                  <motion.p
+                    key={`result-${roundNumber}`}
+                    className="font-black text-xl sm:text-md tracking-widest text-center"
+                    style={{ color: iWon ? '#22c55e' : '#ef4444', textShadow: '0 0 16px currentColor' }}
+                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    {iWon ? '🏆 YOU WON' : '💀 YOU LOST'}
+                  </motion.p>
+                )}
+              </AnimatePresence>
       </div>
 
       {/* ── BOTTOM ACTION AREA ── */}
