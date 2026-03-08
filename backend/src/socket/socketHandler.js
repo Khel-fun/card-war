@@ -85,11 +85,14 @@ function startSessionVerificationRetry(gameId) {
 
 function setupSocketHandlers(io) {
   io.on('connection', (socket) => {
+    console.log(`[SOCKET] Client connected: ${socket.id}`);
     console.log(`Socket connected: ${socket.id}`);
 
     socket.on('join_queue', async ({ walletAddress }) => {
+      console.log(`[SOCKET] join_queue - walletAddress: ${walletAddress}, socketId: ${socket.id}`);
       if (!walletAddress) {
         socket.emit('error', { message: 'walletAddress required' });
+        console.log(`[SOCKET] join_queue - error: walletAddress required, socketId: ${socket.id}`);
         return;
       }
 
@@ -104,6 +107,7 @@ function setupSocketHandlers(io) {
         );
       } catch (err) {
         console.error('DB upsert error:', err.message);
+        console.log(`[SOCKET] join_queue - DB upsert error: ${err.message}, socketId: ${socket.id}`);
       }
 
       socket.data.playerId = playerId;
@@ -114,14 +118,17 @@ function setupSocketHandlers(io) {
         result = await matchmaker.addPlayer(playerId, socket.id, walletAddress, joinTimestamp);
       } catch (err) {
         console.error('Matchmaker error:', err.message);
+        console.log(`[SOCKET] join_queue - Matchmaker error: ${err.message}, socketId: ${socket.id}`);
         socket.emit('error', { message: 'Failed to join game. Please try again.' });
         return;
       }
 
       if (result.type === 'waiting') {
         socket.emit('queue_joined', { message: 'Waiting for opponent...' });
+        console.log(`[SOCKET] join_queue - queue_joined, socketId: ${socket.id}`);
       } else if (result.type === 'already_in_game') {
         socket.emit('error', { message: 'Already in a game', gameId: result.gameId });
+        console.log(`[SOCKET] join_queue - already_in_game, gameId: ${result.gameId}, socketId: ${socket.id}`);
       } else if (result.type === 'game_start') {
         const { gameId, player1Id, player2Id, opponent, self } = result;
         const game = matchmaker.getGame(gameId);
@@ -147,6 +154,7 @@ function setupSocketHandlers(io) {
           );
         } catch (err) {
           console.error('DB game insert error:', err.message);
+          console.log(`[SOCKET] join_queue - DB game insert error: ${err.message}, socketId: ${socket.id}`);
         }
 
         socket.join(gameId);
@@ -161,26 +169,32 @@ function setupSocketHandlers(io) {
           player2Id,
           cardCounts: gameState.cardCounts,
         });
+        console.log(`[SOCKET] join_queue - game_start, gameId: ${gameId}, socketId: ${socket.id}`);
 
         socket.emit('your_role', { playerId: self.playerId, role: 'player2' });
+        console.log(`[SOCKET] join_queue - your_role, playerId: ${self.playerId}, role: player2, socketId: ${socket.id}`);
         if (opponentSocket) {
           opponentSocket.emit('your_role', { playerId: opponent.playerId, role: 'player1' });
+          console.log(`[SOCKET] join_queue - your_role, playerId: ${opponent.playerId}, role: player1, socketId: ${opponentSocket.id}`);
         }
       }
     });
 
     socket.on('flip_card', async ({ gameId }) => {
+      console.log(`[SOCKET] flip_card - gameId: ${gameId}, socketId: ${socket.id}`);
       const playerId = socket.data.playerId;
       if (!playerId) return;
 
       const game = matchmaker.getGame(gameId);
       if (!game) {
         socket.emit('error', { message: 'Game not found' });
+        console.log(`[SOCKET] flip_card - error: Game not found, socketId: ${socket.id}`);
         return;
       }
 
       if (!game.players[playerId]) {
         socket.emit('error', { message: 'Not a player in this game' });
+        console.log(`[SOCKET] flip_card - error: Not a player in this game, socketId: ${socket.id}`);
         return;
       }
 
@@ -188,6 +202,7 @@ function setupSocketHandlers(io) {
 
       if (game.readyFlips.size < 2) {
         io.to(gameId).emit('player_ready', { playerId, waiting: true });
+        console.log(`[SOCKET] flip_card - player_ready, playerId: ${playerId}, waiting: true, socketId: ${socket.id}`);
         return;
       }
 
@@ -204,9 +219,11 @@ function setupSocketHandlers(io) {
           winner: result.winner,
           cardCounts: game.engine.getCardCounts(),
         });
+        console.log(`[SOCKET] flip_card - card_flip, gameId: ${gameId}, socketId: ${socket.id}`);
 
         if (result.isWar) {
           io.to(gameId).emit('war_start', { message: 'WAR! Both players flip a face-down card.' });
+          console.log(`[SOCKET] flip_card - war_start, gameId: ${gameId}, socketId: ${socket.id}`);
         }
 
         if (result.gameOver) {
@@ -227,14 +244,17 @@ function setupSocketHandlers(io) {
             );
           } catch (err) {
             console.error('Round insert error:', err.message);
+            console.log(`[SOCKET] flip_card - Round insert error: ${err.message}, socketId: ${socket.id}`);
           }
         }
       } catch (err) {
         socket.emit('error', { message: err.message });
+        console.log(`[SOCKET] flip_card - error: ${err.message}, socketId: ${socket.id}`);
       }
     });
 
     socket.on('resolve_war', async ({ gameId }) => {
+      console.log(`[SOCKET] resolve_war - gameId: ${gameId}, socketId: ${socket.id}`);
       const playerId = socket.data.playerId;
       const game = matchmaker.getGame(gameId);
       if (!game) return;
@@ -248,19 +268,23 @@ function setupSocketHandlers(io) {
 
         if (warResult.gameOver) {
           io.to(gameId).emit('war_result', { gameOver: true });
+          console.log(`[SOCKET] resolve_war - war_result, gameOver: true, gameId: ${gameId}, socketId: ${socket.id}`);
           await handleGameOver(io, game, warResult.gameWinner, gameId);
         } else {
           io.to(gameId).emit('war_face_down', {
             message: 'Face-down cards placed. Now flip!',
             cardCounts: game.engine.getCardCounts(),
           });
+          console.log(`[SOCKET] resolve_war - war_face_down, gameId: ${gameId}, socketId: ${socket.id}`);
         }
       } catch (err) {
         socket.emit('error', { message: err.message });
+        console.log(`[SOCKET] resolve_war - error: ${err.message}, socketId: ${socket.id}`);
       }
     });
 
     socket.on('disconnect', () => {
+      console.log(`[SOCKET] Client disconnected: ${socket.id}`);
       const playerId = socket.data.playerId;
       if (!playerId) return;
 

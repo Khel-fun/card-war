@@ -22,7 +22,7 @@ function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: s
   const layers = Math.min(count, 5);
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative" style={{ width: 72, height: 100 }}>
+      {/* <div className="relative" style={{ width: 72, height: 100 }}>
         {Array.from({ length: Math.max(layers, 1) }).map((_, i) => (
           <div
             key={i}
@@ -38,7 +38,7 @@ function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: s
             <Image src="/cards/back_of_card.jpg" alt="" fill className="object-cover" />
           </div>
         ))}
-      </div>
+      </div> */}
       <p className="font-bold text-xs uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</p>
       <div className="relative">
         <p className="font-black text-lg" style={{ color: '#d4a74a', textShadow: '0 0 8px rgba(245,158,11,0.5)' }}>{count}</p>
@@ -68,18 +68,18 @@ function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: s
   );
 }
 
-function BigCard({ card, label, won }: { card?: { rank: number | string; suit: string } | null; label: string; won?: boolean }) {
+function BigCard({ card, label, won, count, scoreChange }: { card?: { rank: number | string; suit: string } | null; label: string; won?: boolean; count: number; scoreChange: number | null }) {
   return (
     <div className="flex flex-col items-center gap-2 sm:gap-3">
-      <p className="text-xs sm:text-sm font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.75)' }}>{label}</p>
-      <div className="relative" style={{ width: 'clamp(90px, 25vw, 130px)', height: 'clamp(126px, 35vw, 182px)' }}>
+      <p className="text-xs sm:text-sm font-bold uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.95)' }}>{label}</p>
+      <div className="relative" style={{ width: 'clamp(100px, 25vw, 150px)', height: 'clamp(156px, 35vw, 212px)' }}>
         {[2, 1].map(i => (
           <div
             key={i}
             className="absolute rounded-md overflow-hidden"
             style={{
-              width: 'clamp(84px, 23vw, 120px)',
-              height: 'clamp(117px, 32vw, 168px)',
+              width: 'clamp(100px, 23vw, 140px)',
+              height: 'clamp(150px, 32vw, 210px)',
               top: i * 3, left: i * 2,
               zIndex: 3 - i,
               boxShadow: '0 4px 14px rgba(0,0,0,0.75)',
@@ -93,8 +93,8 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
             key={card ? `${card.rank}-${card.suit}` : 'back'}
             className="absolute rounded-md overflow-hidden"
             style={{
-              width: 'clamp(84px, 23vw, 120px)',
-              height: 'clamp(117px, 32vw, 168px)',
+              width: 'clamp(100px, 23vw, 140px)',
+              height: 'clamp(150px, 32vw, 210px)',
               top: 0, left: 0, zIndex: 10,
               boxShadow: '0 8px 24px rgba(0,0,0,0.85)',
             }}
@@ -109,6 +109,30 @@ function BigCard({ card, label, won }: { card?: { rank: number | string; suit: s
               <Image src="/cards/back_of_card.jpg" alt="face down" fill className="object-cover" />
             )}
           </motion.div>
+        </AnimatePresence>
+      </div>
+      <div className="relative">
+        <p className="font-black text-3xl" style={{ color: '#352405', textShadow: '0 0 8px rgba(245,158,11,0.5)', fontFamily: "Georgia, Serif" }}>{count}</p>
+        <AnimatePresence>
+          {scoreChange !== null && scoreChange !== undefined && (
+            <motion.p
+              key={`score-${scoreChange}`}
+              className="absolute font-black text-xl"
+              style={{
+                color: scoreChange > 0 ? '#22c55e' : '#ef4444',
+                textShadow: '0 0 10px currentColor',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                top: 24,
+              }}
+              initial={{ opacity: 1, y: 0 }}
+              animate={{ opacity: 0, y: 15 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.5 }}
+            >
+              {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
+            </motion.p>
+          )}
         </AnimatePresence>
       </div>
     </div>
@@ -331,19 +355,19 @@ export default function GameBoard() {
       </div>
 
       {/* ── MAIN PLAY AREA ── */}
-      <div className="relative z-20 flex-1 flex flex-col gap-4 items-center justify-center px-2 sm:px-4" style={{ paddingBottom: 140 }}>
+      <div className="relative z-20 flex-1 flex flex-col gap-4 items-center justify-center px-4 sm:px-8" style={{ paddingBottom: 140 }}>
         <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
 
           {/* Left side — opponent won-cards deck */}
-          <div className="flex-shrink-0 sm:block hidden">
+          {/* <div className="flex-shrink-0 sm:block hidden">
             <SideDeck count={opponentCount} label="Opponent" isMe={false} scoreChange={opponentScoreChange} />
-          </div>
+          </div> */}
 
           {/* Center — big flip cards */}
-          <div className="flex-1 flex items-center justify-center gap-3 sm:gap-6">
+          <div className="flex-1 flex items-center justify-center flex-col w-full">
             {/* Opponent center card */}
-            <div className="relative">
-              <BigCard card={opponentCard} label="Opponent's Card" won={opponentWon} />
+            <div className="relative flex w-full">
+              <BigCard card={opponentCard} label="Opponent" won={opponentWon} count={opponentCount} scoreChange={opponentScoreChange} />
               {showWinAnim && opponentCard && opponentWon && (
                 <motion.div
                   className="absolute pointer-events-none rounded-xl overflow-hidden"
@@ -360,12 +384,12 @@ export default function GameBoard() {
             {/* VS divider */}
             <div className="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
               
-              <p className="font-black text-xl sm:text-3xl" style={{ color: 'rgba(255,255,255,0.55)' }}>VS</p>
+              <p className="font-black text-4xl sm:text-5xl" style={{ color: '#352405', fontFamily: 'Georgia, serif' }}>VS</p>
             </div>
 
             {/* My center card */}
-            <div className="relative">
-              <BigCard card={myCard} label="Your Card" won={iWon} />
+            <div className="relative w-full flex justify-end">
+              <BigCard card={myCard} label="Your" won={iWon} count={myCount} scoreChange={myScoreChange} />
               {showWinAnim && myCard && iWon && (
                 <motion.div
                   className="absolute pointer-events-none rounded-xl overflow-hidden"
@@ -381,15 +405,15 @@ export default function GameBoard() {
           </div>
 
           {/* Right side — my won-cards deck */}
-          <div className="flex-shrink-0 sm:block hidden">
+          {/* <div className="flex-shrink-0 sm:block hidden">
             <SideDeck count={myCount} label="Your Deck" isMe scoreChange={myScoreChange} />
-          </div>
+          </div> */}
 
           {/* Mobile deck indicators */}
-          <div className="sm:hidden flex items-center justify-between w-full px-4 mt-4">
+          {/* <div className="sm:hidden flex items-center justify-between w-full px-4 mt-4">
             <SideDeck count={opponentCount} label="Opp" isMe={false} scoreChange={opponentScoreChange} />
             <SideDeck count={myCount} label="You" isMe scoreChange={myScoreChange} />
-          </div>
+          </div> */}
 
         </div>
         <AnimatePresence>
@@ -397,7 +421,7 @@ export default function GameBoard() {
                   <motion.p
                     key={`result-${roundNumber}`}
                     className="font-black text-xl sm:text-md tracking-widest text-center"
-                    style={{ color: iWon ? '#22c55e' : '#ef4444', textShadow: '0 0 16px currentColor' }}
+                    style={{ color: iWon ? '#22c55e' : '#ef4444', textShadow: '0 0 16px currentColor', fontFamily: "Georgia, serif" }}
                     initial={{ opacity: 0, scale: 0.5, y: -10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0 }}

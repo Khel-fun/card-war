@@ -43,7 +43,12 @@ export default function GamePage() {
           process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
         const response = await fetch(
           `${backendUrl}/api/games/${gameId}/fairness`,
-          { signal: controller.signal }
+          { 
+            signal: controller.signal,
+            headers: {
+              'ngrok-skip-browser-warning': 'true',
+            },
+          }
         );
         if (!response.ok) {
           throw new Error(`Fairness API failed: ${response.status}`);
@@ -154,7 +159,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[url('/bg.png')] bg-cover bg-center">
+    <div className="min-h-screen relative overflow-hidden bg-[url('/bg2.jpeg')] bg-cover bg-center">
       <div className="absolute inset-0 pointer-events-none" style={{
         background: `
           radial-gradient(ellipse at 15% 60%, rgba(251,146,60,0.25) 0%, transparent 40%),

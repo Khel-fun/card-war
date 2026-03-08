@@ -25,35 +25,55 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.path}`);
+  if (Object.keys(req.query).length > 0) {
+    console.log(`  Query:`, req.query);
+  }
+  next();
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/api/games/:gameId/reveal', async (req, res) => {
+  const { gameId } = req.params;
+  console.log(`[API] /reveal - gameId: ${gameId}`);
   try {
-    const { gameId } = req.params;
     const result = await pool.query(
       'SELECT original_deck, status FROM games WHERE id = $1',
       [gameId]
     );
-    if (!result.rows.length) return res.status(404).json({ error: 'Game not found' });
+    if (!result.rows.length) {
+      console.log(`[API] /reveal - Game not found: ${gameId}`);
+      return res.status(404).json({ error: 'Game not found' });
+    }
     if (result.rows[0].status !== 'CLOSED') {
+      console.log(`[API] /reveal - Game not finished, status: ${result.rows[0].status}`);
       return res.status(400).json({ error: 'Game not finished yet' });
     }
+    console.log(`[API] /reveal - Success for gameId: ${gameId}`);
     res.json({ deck: result.rows[0].original_deck });
   } catch (err) {
+    console.error(`[API] /reveal - Error for gameId ${gameId}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 app.get('/api/games/:gameId/fairness', async (req, res) => {
+  const { gameId } = req.params;
+  console.log(`[API] /fairness - gameId: ${gameId}`);
   try {
-    const { gameId } = req.params;
     const sessionExists = await pool.query(
       `SELECT 1 FROM game_sessions WHERE session_uuid = $1::uuid LIMIT 1`,
       [gameId]
     );
     if (!sessionExists.rows.length) {
+      console.log(`[API] /fairness - Game session not found: ${gameId}`);
       return res.status(404).json({ error: 'Game session not found' });
     }
+    console.log(`[API] /fairness - Found session: ${gameId}`);
 
     const proofsResult = await pool.query(
       `SELECT
@@ -89,6 +109,11 @@ app.get('/api/games/:gameId/fairness', async (req, res) => {
 
     const shuffle = evaluateKind(byKind.shuffle);
     const deal = evaluateKind(byKind.deal);
+    console.log(`[API] /fairness - Results for ${gameId}:`, {
+      shuffle: { checked: shuffle.checked, passed: shuffle.passedCount },
+      deal: { checked: deal.checked, passed: deal.passedCount },
+      totalProofs: proofs.length,
+    });
 
     const lastUpdatedAt = proofs.reduce((latest, row) => {
       const ts = row.updated_at ? new Date(row.updated_at).toISOString() : null;
@@ -106,6 +131,7 @@ app.get('/api/games/:gameId/fairness', async (req, res) => {
       lastUpdatedAt,
     });
   } catch (err) {
+    console.error(`[API] /fairness - Error for gameId ${gameId}:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
