@@ -49,7 +49,7 @@ export default function PlayingCard({ rank, suit, faceDown = false, animate = fa
         transition={{ duration: 0.4 }}
       >
         <Image
-          src="/cards/back_of_card.jpg"
+          src="/cards/back_of_card.png"
           alt="Card back"
           fill
           className="object-cover"
