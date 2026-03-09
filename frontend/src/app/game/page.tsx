@@ -159,7 +159,7 @@ export default function GamePage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[url('/bg2.jpeg')] bg-cover bg-center">
+    <div className="min-h-screen relative overflow-hidden bg-[url('/bg2.webp')] bg-cover bg-center">
       <div className="absolute inset-0 pointer-events-none" style={{
         background: `
           radial-gradient(ellipse at 15% 60%, rgba(251,146,60,0.25) 0%, transparent 40%),

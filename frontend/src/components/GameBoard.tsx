@@ -112,7 +112,7 @@ function BigCard({ card, label, won, count, scoreChange }: { card?: { rank: numb
         </AnimatePresence>
       </div>
       <div className="relative">
-        <p className="font-black text-3xl" style={{ color: '#352405', textShadow: '0 0 8px rgba(245,158,11,0.5)', fontFamily: "Georgia, Serif" }}>{count}</p>
+        <p className="font-black text-3xl" style={{ color: '#352405', textShadow: '0 0 8px rgba(245,158,11,0.5)', fontFamily: "Georgia, Serif" }}> Points: {count}</p>
         <AnimatePresence>
           {scoreChange !== null && scoreChange !== undefined && (
             <motion.p
