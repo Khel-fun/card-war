@@ -39,7 +39,7 @@ Card War is a decentralized card game built with a hybrid architecture combining
 **Smart Contracts:**
 - Solidity
 - Hardhat (development framework)
-- Base Sepolia (testnet deployment)
+- Base (mainnet deployment)
 
 **Infrastructure:**
 - Kurier API (ZK proof aggregation service)
@@ -99,7 +99,7 @@ Card War is a decentralized card game built with a hybrid architecture combining
                             ▼
                   ┌──────────────────┐
                   │  Smart Contract  │
-                  │  (Base Sepolia)  │
+                  │   (Base Mainnet) │
                   └──────────────────┘
 ```
 
@@ -433,7 +433,7 @@ Wraps app with necessary context providers:
 ```
 
 **Wagmi Configuration:**
-- Chain: Base Sepolia (testnet)
+- Chain: Base (mainnet)
 - Connectors: Injected wallet, WalletConnect
 - Transport: HTTP RPC
 
@@ -670,17 +670,17 @@ event AggregationVerified(
 **Deployment:**
 ```bash
 cd contract
-npx hardhat run scripts/deploy.js --network baseSepolia
+npx hardhat run scripts/deploy.js --network baseMainnet
 ```
 
 **Configuration:**
 ```javascript
 // hardhat.config.js
 networks: {
-  baseSepolia: {
-    url: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+  baseMainnet: {
+    url: process.env.BASE_MAINNET_RPC_URL || 'https://mainnet.base.org',
     accounts: [process.env.DEPLOYER_PRIVATE_KEY],
-    chainId: 84532,
+    chainId: 8453,
   },
 }
 ```
@@ -763,7 +763,7 @@ const response = await axios.post(
   {
     proofType: 'ultrahonk',
     vkRegistered: Boolean(vkHash),
-    chainId: 84532,
+    chainId: 8453,
     proofData: {
       proof: proofHex,
       publicSignals: publicInputs,
@@ -1166,7 +1166,7 @@ ETHERSCAN_API_KEY=your_api_key
 
 **3. Deploy:**
 ```bash
-npx hardhat run scripts/deploy.js --network baseSepolia
+npx hardhat run scripts/deploy.js --network baseMainnet
 ```
 
 **4. Update Backend:**
@@ -1194,7 +1194,7 @@ KURIER_URL=https://api-testnet.kurier.xyz/api/v1
 KURIER_API=<YOUR_KURIER_API_KEY>
 
 # Blockchain
-RPC_URL=https://sepolia.base.org
+RPC_URL=https://mainnet.base.org
 OPERATOR_PRIVATE_KEY=0x<PRIVATE_KEY>
 CARDWAR_REGISTRY_ADDRESS=0x<CONTRACT_ADDRESS>
 ZKVERIFY_DOMAIN_ID=2

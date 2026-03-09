@@ -8,7 +8,7 @@ Card War is a real-time, provably fair, 1v1 PvP card game (the classic "War" car
 |---|---|---|
 | **Frontend** | Next.js (React), Wagmi, RainbowKit, Socket.IO client, Zustand | Wallet authentication, real-time game UI, on-chain interactions |
 | **Backend** | Node.js, Express, Socket.IO, PostgreSQL, Noir/UltraHonk | Game orchestration, matchmaking, ZK proof generation & verification, state persistence |
-| **Smart Contracts** | Solidity (Hardhat), Base Sepolia | On-chain game registry, proof aggregation verification via zkVerify |
+| **Smart Contracts** | Solidity (Hardhat), Base Mainnet | On-chain game registry, proof aggregation verification via zkVerify |
 
 All card operations (shuffle and deal) are executed deterministically through **Noir zero-knowledge circuits**. Proofs are generated server-side, submitted to the **zkVerify Kurier relayer** for aggregation, and ultimately anchored on-chain through the **CardWarRegistry** smart contract. This makes every game session **publicly auditable and provably fair**, without revealing private game state during play.
 
@@ -23,7 +23,7 @@ All card operations (shuffle and deal) are executed deterministically through **
                                  ▼                     │                         │             │
                       ┌────────────────────┐           │                         ▼             │
                       │   CardWarRegistry  │           │               ┌─────────────────┐    │
-                      │   (Base Sepolia)   │◄──────────┤               │  zkVerify Kurier │    │
+                      │   (Base Mainnet)   │◄──────────┤               │  zkVerify Kurier │    │
                       └────────────────────┘           │               │  (Relayer API)   │    │
                                  ▲                     │               └─────────────────┘    │
                                  │                     │                         │             │
@@ -42,7 +42,7 @@ All card operations (shuffle and deal) are executed deterministically through **
 
 **Technology**: Next.js 14 (App Router), TypeScript, Wagmi v2, RainbowKit, Socket.IO client, Zustand, Framer Motion, Tailwind CSS
 
-**Target chain**: Base Sepolia
+**Target chain**: Base Mainnet
 
 #### Pages
 
@@ -61,7 +61,7 @@ All card operations (shuffle and deal) are executed deterministically through **
 | **useContract Hook** | `hooks/useContract.ts` | Wagmi hooks wrapping `createGame`, `joinGame`, and `completeGame` calls to the CardWarRegistry contract |
 | **Game Store** | `store/gameStore.ts` | Zustand store holding all client-side game state: `gameId`, `playerId`, `role`, `status`, `cardCounts`, `lastFlip`, `roundNumber`, `isWar`, `gameWinner` |
 | **GameBoard** | `components/GameBoard.tsx` | Primary gameplay UI — card flip animations, score tracking, war state rendering, round display |
-| **Wagmi Config** | `lib/wagmiConfig.ts` | Chain configuration (Base Sepolia), RainbowKit wallets (Injected + WalletConnect) |
+| **Wagmi Config** | `lib/wagmiConfig.ts` | Chain configuration (Base Mainnet), RainbowKit wallets (Injected + WalletConnect) |
 | **Contract ABI** | `contracts/CardWarRegistry.json` | Auto-generated ABI and deployed address (written by the deploy script) |
 
 #### Socket Events Consumed
@@ -147,7 +147,7 @@ Standard 52-card deck utilities (`createDeck`, `shuffle`, `hashDeck`, `dealCards
 ### Smart Contracts
 
 **Contract**: `CardWarRegistry.sol`
-**Network**: Base Sepolia (chain ID 84532)
+**Network**: Base Mainnet (chain ID 8453)
 **Framework**: Hardhat + OpenZeppelin
 
 #### Contract Design
@@ -251,7 +251,7 @@ The circuits expose Noir-native functions (`shuffle_deck`, `deal_cards`, `card_t
 #### On-Chain Verification — `onchain.ts`
 
 `verifyAndRecordAggregationOnChain()`:
-1. Connects to Base Sepolia via ethers.js using the operator wallet
+1. Connects to Base Mainnet via ethers.js using the operator wallet
 2. Calls `CardWarRegistry.verifyProofAggregation()` (read-only) to check the Merkle inclusion proof
 3. If valid, calls `CardWarRegistry.recordProofAggregationVerification()` (state-changing tx) to emit the on-chain event
 4. Returns verification result with tx hash
@@ -472,7 +472,7 @@ handleGameOver()
 ### Step 1 — Connect & Enter
 
 1. User opens the app at `/` (Home page)
-2. Connects wallet via RainbowKit (Base Sepolia)
+2. Connects wallet via RainbowKit (Base Mainnet)
 3. Clicks **ENTER BATTLE** → navigates to `/lobby`
 
 ### Step 2 — Find Match

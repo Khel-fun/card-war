@@ -9,7 +9,7 @@ module.exports = {
       optimizer: { enabled: true, runs: 200 },
     },
   },
-  defaultNetwork: 'baseSepolia',
+  defaultNetwork: 'baseMainnet',
   networks: {
     localhost: {
       url: 'http://127.0.0.1:8545',

@@ -312,7 +312,7 @@ export async function submitProofForVerification(
   const proofPayload = {
     proofType: "ultrahonk",
     vkRegistered: Boolean(vkHash),
-    chainId: 84532,
+    chainId: 8453,
     proofOptions: {
       variant: "Plain",
     },
@@ -415,7 +415,7 @@ export async function verifyProof(
   const proofPayload = {
     proofType: "ultrahonk",
     vkRegistered: Boolean(vkHash),
-    chainId: 84532,
+    chainId: 8453,
     proofOptions: {
       variant: "Plain",
     },
