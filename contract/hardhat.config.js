@@ -23,6 +23,11 @@ module.exports = {
       accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
       chainId: 84532,
     },
+   baseMainnet: {
+    url: process.env.BASE_MAINNET_RPC_URL || '',
+    accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
+    chainId: 8453,
+  },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY || '',
