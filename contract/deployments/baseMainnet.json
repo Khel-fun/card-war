@@ -1,0 +1,8 @@
+{
+  "network": "baseMainnet",
+  "address": "0xfeFE25DFE7C3A850b265508eEF43a623cc215737",
+  "zkVerifyAddress": "0xCb47A3C3B9Eb2E549a3F2EA4729De28CafbB2b69",
+  "domainId": 2,
+  "deployer": "0x7507fb4BcB126ef43D8D58E56BD89500a221d508",
+  "deployedAt": "2026-03-09T07:00:35.268Z"
+}

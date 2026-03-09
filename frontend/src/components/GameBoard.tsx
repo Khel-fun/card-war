@@ -35,7 +35,7 @@ function SideDeck({ count, label, isMe, scoreChange }: { count: number; label: s
               filter: isMe ? 'hue-rotate(200deg) saturate(1.4)' : 'none',
             }}
           >
-            <Image src="/cards/back_of_card.jpg" alt="" fill className="object-cover" />
+            <Image src="/cards/back_of_card.png" alt="" fill className="object-cover" />
           </div>
         ))}
       </div> */}
@@ -85,7 +85,7 @@ function BigCard({ card, label, won, count, scoreChange }: { card?: { rank: numb
               boxShadow: '0 4px 14px rgba(0,0,0,0.75)',
             }}
           >
-            <Image src="/cards/back_of_card.jpg" alt="" fill className="object-cover" />
+            <Image src="/cards/back_of_card.png" alt="" fill className="object-cover" />
           </div>
         ))}
         <AnimatePresence mode="wait">
@@ -106,7 +106,7 @@ function BigCard({ card, label, won, count, scoreChange }: { card?: { rank: numb
             {card ? (
               <Image src={getCardImg(card.rank, card.suit)} alt={`${card.rank} of ${card.suit}`} fill className="object-cover" />
             ) : (
-              <Image src="/cards/back_of_card.jpg" alt="face down" fill className="object-cover" />
+              <Image src="/cards/back_of_card.png" alt="face down" fill className="object-cover" />
             )}
           </motion.div>
         </AnimatePresence>
