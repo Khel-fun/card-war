@@ -112,7 +112,7 @@ function BigCard({ card, label, won, count, scoreChange }: { card?: { rank: numb
         </AnimatePresence>
       </div>
       <div className="relative">
-        <p className="font-black text-3xl" style={{ color: '#352405', textShadow: '0 0 8px rgba(245,158,11,0.5)', fontFamily: "Georgia, Serif" }}> Points: {count}</p>
+        <p className="font-black text-3xl" style={{ color: label == 'Opponent'? '#3366a1': '#352405', textShadow: '0 0 8px rgba(245,158,11,0.5)', fontFamily: "Georgia, Serif" }}> Points: {count}</p>
         <AnimatePresence>
           {scoreChange !== null && scoreChange !== undefined && (
             <motion.p
@@ -180,7 +180,7 @@ export default function GameBoard() {
     if (Object.keys(cardCounts).length > 0 && Object.keys(prevCounts).length > 0) {
       const myChange = myCount - (prevCounts[playerId] ?? myCount);
       const oppChange = opponentCount - (prevCounts[opponentId] ?? opponentCount);
-      
+
       if (myChange !== 0) {
         setMyScoreChange(myChange);
         setTimeout(() => setMyScoreChange(null), 1500);
@@ -383,7 +383,7 @@ export default function GameBoard() {
 
             {/* VS divider */}
             <div className="flex flex-col items-center gap-1 sm:gap-2 flex-shrink-0">
-              
+
               <p className="font-black text-4xl sm:text-5xl" style={{ color: '#352405', fontFamily: 'Georgia, serif' }}>VS</p>
             </div>
 
